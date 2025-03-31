@@ -1,0 +1,80 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id         String           @id @unique // Discord User ID
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  guildStats UserGuildStats[]
+  inventory  InventoryItem[]
+}
+
+model Guild {
+  id         String           @id @unique // Discord Guild ID
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  userStats  UserGuildStats[]
+}
+
+model UserGuildStats {
+  id          String   @id @default(cuid())
+  userId      String
+  guildId     String
+  chips       BigInt   @default(100) // Use BigInt for currency
+  gamesPlayed Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, guildId])
+  @@index([guildId, chips])
+  @@index([guildId, gamesPlayed])
+  @@index([userId])
+}
+
+model Item {
+  id             Int             @id @default(autoincrement())
+  name           String          @unique
+  description    String?
+  baseValue      Int             @default(0)
+  type           ItemType        @default(JUNK)
+  createdAt      DateTime        @default(now())
+  inventoryItems InventoryItem[]
+}
+
+model InventoryItem {
+  id        String   @id @default(cuid())
+  userId    String
+  itemId    Int
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemId])
+  @@index([userId])
+}
+
+enum ItemType {
+  FISH
+  BUFF
+  JUNK
+}

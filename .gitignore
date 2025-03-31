@@ -1,0 +1,40 @@
+# dependencies
+node_modules/
+
+# testing
+/coverage/
+
+# production
+/build/
+
+# environment
+.env
+.env.*
+!.env.example
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+
+# typescript
+*.tsbuildinfo
+
+# debug
+.pnpm-debug.log*
+
+# os
+.DS_Store
+Thumbs.db
+
+# generated prisma folder
+generated/
+blueprint.md
+prisma/migrations
+
+#any file that starts with "repomix"
+repomix*
+
+#vscode
+.vscode/
