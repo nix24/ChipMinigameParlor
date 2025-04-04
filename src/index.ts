@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 // import { container } from "tsyringe"; // Removed tsyringe container usage for core services
 import { handleInteraction, loadCommands } from "./core/handleInteraction";
 import { registerCommands } from "./core/registerCommands";
+import { CacheService } from "./services/cache.service";
 import { EconomyService } from "./services/economy.service";
 import { LoggerService } from "./services/logger.service";
 import { PrismaService } from "./services/prisma.service";
@@ -15,10 +16,11 @@ async function bootstrap() {
     // Manual Service Instantiation
     const logger = new LoggerService();
     logger.info("Starting bot...");
+    const cacheService = new CacheService(logger);
     const prismaService = new PrismaService();
     // Allow Prisma time to connect (or add explicit init method)
     await new Promise(resolve => setTimeout(resolve, 2000)); // Simple wait, consider better readiness check
-    const economyService = new EconomyService(prismaService, logger);
+    const economyService = new EconomyService(prismaService, logger, cacheService);
 
     //validate env
     const token = process.env.DISCORD_BOT_TOKEN;
@@ -83,6 +85,7 @@ async function bootstrap() {
             economy: economyService,
             logger: logger,
             prisma: prismaService,
+            cache: cacheService,
         });
     });
 
@@ -98,6 +101,7 @@ async function bootstrap() {
     process.on("SIGINT", async () => {
         logger.info("Received SIGINT. Shutting down...");
         await prismaService.disconnect(); // Use disconnect method if available
+        await cacheService.disconnect();
         client.destroy();
         process.exit(0);
     });
@@ -105,6 +109,7 @@ async function bootstrap() {
     process.on("SIGTERM", async () => {
         logger.info("Received SIGTERM. Shutting down...");
         await prismaService.disconnect(); // Use disconnect method if available
+        await cacheService.disconnect();
         client.destroy();
         process.exit(0);
     });

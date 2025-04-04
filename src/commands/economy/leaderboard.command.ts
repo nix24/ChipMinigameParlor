@@ -1,3 +1,4 @@
+import type { CacheService } from "@/services/cache.service"; // Import CacheService
 // src/commands/utility/leaderboard.command.ts
 import type { LoggerService } from "@/services/logger.service";
 import type { PrismaService } from "@/services/prisma.service"; // Import PrismaService
@@ -19,6 +20,7 @@ import { Prisma } from "generated/prisma"; // Keep Prisma for SortOrder
 
 const PAGE_SIZE = 10; // Number of entries per page
 const COLLECTOR_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds for leaderboard cache
 
 class LeaderboardCommand /* implements Command */ {
     data = new SlashCommandBuilder()
@@ -44,7 +46,8 @@ class LeaderboardCommand /* implements Command */ {
         interaction: ChatInputCommandInteraction,
         services: CommandServices,
     ): Promise<void> {
-        const { logger, prisma /* Destructure economy if needed */ } = services; // Destructure from CommandServices
+        // Destructure cache from CommandServices
+        const { logger, prisma, cache: cacheService } = services;
         const guildId = interaction.guildId;
         const leaderboardType = interaction.options.getString("type", true) as 'richest' | 'most_played';
         let currentPage = interaction.options.getInteger("page") ?? 1;
@@ -57,10 +60,12 @@ class LeaderboardCommand /* implements Command */ {
         await interaction.deferReply();
 
         try {
+            // Pass cacheService to createLeaderboardPage
             const { embed, row, totalPages } = await this.createLeaderboardPage(
                 interaction,
-                prisma, // Pass the destructured prisma
-                logger, // Pass the destructured logger
+                prisma,
+                logger,
+                cacheService, // Pass cache service
                 guildId,
                 leaderboardType,
                 currentPage
@@ -88,10 +93,12 @@ class LeaderboardCommand /* implements Command */ {
 
                 try {
                     await buttonInteraction.deferUpdate(); // Acknowledge button press
+                    // Pass cacheService to createLeaderboardPage in collector
                     const { embed: updatedEmbed, row: updatedRow } = await this.createLeaderboardPage(
                         interaction, // Pass original interaction for user context
-                        prisma, // Pass the destructured prisma
-                        logger, // Pass the destructured logger
+                        prisma,
+                        logger,
+                        cacheService, // Pass cache service
                         guildId,
                         leaderboardType,
                         currentPage
@@ -119,97 +126,111 @@ class LeaderboardCommand /* implements Command */ {
     // --- Helper to create leaderboard page ---
     async createLeaderboardPage(
         interaction: ChatInputCommandInteraction, // Needed for fetching user details
-        prisma: PrismaService, // Use PrismaService type
+        prisma: PrismaService,
         logger: LoggerService,
+        cacheService: CacheService, // Accept CacheService
         guildId: string,
         type: 'richest' | 'most_played',
         page: number
     ): Promise<{ embed: EmbedBuilder, row: ActionRowBuilder<ButtonBuilder> | null, totalPages: number }> {
 
-        const whereClause = { guildId: guildId };
-        const orderByClause = type === 'richest'
-            ? { chips: Prisma.SortOrder.desc }
-            : { gamesPlayed: Prisma.SortOrder.desc };
+        const cacheKey = `leaderboard:${guildId}:${type}:${page}`;
 
-        // Get total count for pagination
-        const totalCount = await prisma.userGuildStats.count({ where: whereClause });
-        const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-        let adjustedPage = page;
-        if (adjustedPage < 1) {
-            adjustedPage = 1;
-        } else if (adjustedPage > totalPages && totalPages > 0) {
-            adjustedPage = totalPages;
-        }
+        // Wrap the entire page generation logic in the cache
+        return cacheService.wrap(cacheKey, async () => {
+            logger.debug(`Cache MISS for ${cacheKey}. Generating leaderboard page.`);
 
-        const skip = (adjustedPage - 1) * PAGE_SIZE;
+            const whereClause = { guildId: guildId };
+            const orderByClause = type === 'richest'
+                ? { chips: Prisma.SortOrder.desc }
+                : { gamesPlayed: Prisma.SortOrder.desc };
 
-        // Fetch the data for the current page
-        const stats = await prisma.userGuildStats.findMany({
-            where: whereClause,
-            orderBy: orderByClause,
-            take: PAGE_SIZE,
-            skip: skip,
-        });
+            // Get total count for pagination
+            const totalCount = await prisma.userGuildStats.count({ where: whereClause });
+            const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+            let adjustedPage = page;
+            if (adjustedPage < 1) {
+                adjustedPage = 1;
+            } else if (adjustedPage > totalPages && totalPages > 0) {
+                adjustedPage = totalPages;
+            }
 
-        // Fetch user details for display names
-        const userIds = stats.map(s => s.userId);
-        const userMap = new Map<string, User>();
-        if (userIds.length > 0) {
-            // Fetch users individually or use guild members fetch if preferred/needed
-            // Fetching users globally is often more reliable than guild members
-            for (const userId of userIds) {
-                try {
-                    const user = await interaction.client.users.fetch(userId);
-                    userMap.set(userId, user);
-                } catch (fetchError) {
-                    logger.warn(`Could not fetch user ${userId} for leaderboard:`, fetchError);
-                    // Optionally add a placeholder user object
-                    userMap.set(userId, { username: `Unknown User (${userId.slice(0, 4)})` } as User);
+            const skip = (adjustedPage - 1) * PAGE_SIZE;
+
+            // Fetch the data for the current page
+            const stats = await prisma.userGuildStats.findMany({
+                where: whereClause,
+                orderBy: orderByClause,
+                take: PAGE_SIZE,
+                skip: skip,
+            });
+
+            // Fetch user details for display names
+            const userIds = stats.map(s => s.userId);
+            const userMap = new Map<string, User>();
+            if (userIds.length > 0) {
+                for (const userId of userIds) {
+                    try {
+                        // Attempt to fetch user from cache first (optional optimization)
+                        const cachedUser = await cacheService.get<User>(`user:${userId}`);
+                        if (cachedUser) {
+                            userMap.set(userId, cachedUser);
+                        } else {
+                            const user = await interaction.client.users.fetch(userId);
+                            userMap.set(userId, user);
+                            // Cache fetched user for a short period
+                            await cacheService.set(`user:${userId}`, user, 300 * 1000); // Cache user for 5 mins
+                        }
+                    } catch (fetchError) {
+                        logger.warn(`Could not fetch user ${userId} for leaderboard:`, fetchError);
+                        userMap.set(userId, { username: `Unknown User (${userId.slice(0, 4)})` } as User);
+                    }
                 }
             }
-        }
 
+            // Build the description string
+            let description = "";
+            if (stats.length === 0) {
+                description = "No stats found for this server yet!";
+            } else {
+                description = stats.map((stat, index) => {
+                    const rank = skip + index + 1;
+                    const userName = userMap.get(stat.userId)?.username ?? "Unknown User";
+                    const value = type === 'richest' ? stat.chips : stat.gamesPlayed;
+                    const valueSuffix = type === 'richest' ? 'chips' : 'games';
+                    return `**${rank}.** ${userName} - ${value.toLocaleString()} ${valueSuffix}`; // Added toLocaleString()
+                }).join('\n');
+            }
 
-        // Build the description string
-        let description = "";
-        if (stats.length === 0) {
-            description = "No stats found for this server yet!";
-        } else {
-            description = stats.map((stat, index) => {
-                const rank = skip + index + 1;
-                const userName = userMap.get(stat.userId)?.username ?? "Unknown User";
-                const value = type === 'richest' ? stat.chips : stat.gamesPlayed;
-                const valueSuffix = type === 'richest' ? 'chips' : 'games';
-                return `**${rank}.** ${userName} - ${value} ${valueSuffix}`;
-            }).join('\n');
-        }
+            // Create the embed
+            const embed = new EmbedBuilder()
+                .setTitle(`🏆 ${type === 'richest' ? 'Richest Players' : 'Most Games Played'} - Server Leaderboard`)
+                .setColor(type === 'richest' ? 0xFFD700 : 0x0099FF) // Gold for rich, Blue for games
+                .setDescription(description)
+                .setFooter({ text: `Page ${adjustedPage} of ${totalPages === 0 ? 1 : totalPages}` }) // Use adjustedPage
+                .setTimestamp();
 
-        // Create the embed
-        const embed = new EmbedBuilder()
-            .setTitle(`🏆 ${type === 'richest' ? 'Richest Players' : 'Most Games Played'} - Server Leaderboard`)
-            .setColor(type === 'richest' ? 0xFFD700 : 0x0099FF) // Gold for rich, Blue for games
-            .setDescription(description)
-            .setFooter({ text: `Page ${page} of ${totalPages === 0 ? 1 : totalPages}` })
-            .setTimestamp();
+            // Create pagination buttons if needed
+            let row: ActionRowBuilder<ButtonBuilder> | null = null;
+            if (totalPages > 1) {
+                row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+                    new ButtonBuilder()
+                        // Use adjustedPage in customId to ensure consistency if page was out of bounds
+                        .setCustomId(`leaderboard_${type}_${interaction.id}_prev_${adjustedPage}`)
+                        .setLabel("◀️ Previous")
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(adjustedPage <= 1),
+                    new ButtonBuilder()
+                        .setCustomId(`leaderboard_${type}_${interaction.id}_next_${adjustedPage}`)
+                        .setLabel("Next ▶️")
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(adjustedPage >= totalPages)
+                );
+            }
 
-        // Create pagination buttons if needed
-        let row: ActionRowBuilder<ButtonBuilder> | null = null;
-        if (totalPages > 1) {
-            row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`leaderboard_${type}_${interaction.id}_prev_${page}`) // Include interaction ID for uniqueness
-                    .setLabel("◀️ Previous")
-                    .setStyle(ButtonStyle.Primary)
-                    .setDisabled(page <= 1),
-                new ButtonBuilder()
-                    .setCustomId(`leaderboard_${type}_${interaction.id}_next_${page}`)
-                    .setLabel("Next ▶️")
-                    .setStyle(ButtonStyle.Primary)
-                    .setDisabled(page >= totalPages)
-            );
-        }
+            return { embed, row, totalPages };
 
-        return { embed, row, totalPages };
+        }, CACHE_TTL_MS); // Pass TTL to wrap
     }
 }
 

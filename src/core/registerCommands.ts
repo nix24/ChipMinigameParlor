@@ -1,30 +1,26 @@
-import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url"; // Keep fileURLToPath if used for logging
 import type { Command } from "@/commands/games/coinflip.command";
 import { LoggerService } from "@/services/logger.service"; // Use alias
+import { findCommandFiles, isCommandClass } from "@/utils/commandLoader.utils"; // Import helpers
+import { REST, Routes } from "discord.js";
 // src/core/registerCommands.ts
-import { REST } from "@discordjs/rest";
-import { Routes } from "discord-api-types/v10";
 import dotenv from "dotenv";
-import { container } from "tsyringe";
+import { container } from "tsyringe"; // Keep for now
 
 dotenv.config();
-// Get the directory name in ESM
+// Get the directory name in ESM - Still needed for commandsPath
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const logger = container.resolve(LoggerService); // Resolve logger instance
+const logger = container.resolve(LoggerService); // Resolve logger instance - Keep tsyringe for now
 
-// Helper type guard (duplicate, consider moving to shared util)
-function isCommandClass(v: unknown): v is new () => Command {
-    return typeof v === 'function' && /^\s*class\s+/.test(v.toString());
-}
+// Removed local isCommandClass definition
 
 export async function registerCommands() {
     const commandDataList: Command["data"][] = []; // Array to hold command data for registration
     const commandsPath = path.join(__dirname, "../commands");
-    const commandFiles = await findCommandFiles(commandsPath);
+    const commandFiles = await findCommandFiles(commandsPath); // Use imported helper
 
     for (const file of commandFiles) {
         try {
@@ -33,6 +29,7 @@ export async function registerCommands() {
             const commandCandidate = commandModule.default || commandModule;
             let commandInstance: Command | null = null;
 
+            // Use imported helper
             if (isCommandClass(commandCandidate)) {
                 // Instantiate the Command class
                 commandInstance = new commandCandidate();
@@ -84,23 +81,4 @@ export async function registerCommands() {
     }
 }
 
-// Helper function to recursively find command files (duplicate)
-async function findCommandFiles(dir: string): Promise<string[]> {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    const files = await Promise.all(
-        entries.map(async (entry) => {
-            const res = path.resolve(dir, entry.name);
-            if (entry.isDirectory()) {
-                return findCommandFiles(res);
-            } if (
-                entry.isFile() &&
-                (res.endsWith(".command.ts") || res.endsWith(".command.js")) // Look for specific suffix
-            ) {
-                // Return file URL for dynamic import()
-                return pathToFileURL(res).href;
-            }
-            return []; // Return empty array for non-matching files/dirs
-        }),
-    );
-    return files.flat(); // Flatten the array of arrays
-}
+// Removed local findCommandFiles definition

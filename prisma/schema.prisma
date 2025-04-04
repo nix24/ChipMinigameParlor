@@ -36,8 +36,9 @@ model UserGuildStats {
   guildId     String
   chips       BigInt   @default(100) // Use BigInt for currency
   gamesPlayed Int      @default(0)
+  lastDailyClaimed DateTime? // Add field for tracking last daily claim
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @updatedAt // Ensure this directive is present
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)

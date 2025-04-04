@@ -1,9 +1,9 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url"; // Import fileURLToPath and pathToFileURL
+import path from "node:path"; // Keep if needed for logger path resolution or __dirname
+import { fileURLToPath } from "node:url"; // Keep if needed for logger path resolution
 import type { Command } from "@/commands/games/coinflip.command"; // Adjust path as needed
 import { LoggerService } from "@/services/logger.service"; // Use alias
 import type { CommandServices } from "@/types/command.types"; // Import the new interface
+import { findCommandFiles, isCommandClass } from "@/utils/commandLoader.utils"; // Import helpers
 // src/core/handleInteraction.ts
 import { type BaseInteraction, Collection } from "discord.js";
 import { container as globalContainer } from "tsyringe";
@@ -14,12 +14,6 @@ const __dirname = path.dirname(__filename);
 
 // Cache commands to avoid reloading them on every interaction
 const commands = new Collection<string, Command>();
-
-// Helper type guard to check if something is a class constructor
-// We expect Command constructors specifically, though type system can't fully enforce parameterless here
-function isCommandClass(v: unknown): v is new () => Command {
-    return typeof v === 'function' && /^\s*class\s+/.test(v.toString());
-}
 
 export async function loadCommands(): Promise<void> {
     const logger = globalContainer.resolve(LoggerService);
@@ -35,7 +29,7 @@ export async function loadCommands(): Promise<void> {
             const commandCandidate = commandModule.default || commandModule;
             let commandInstance: Command | null = null;
 
-            // Check if the export is a Command class constructor
+            // Use imported helper
             if (isCommandClass(commandCandidate)) {
                 // Instantiate the Command class
                 commandInstance = new commandCandidate();
@@ -69,7 +63,7 @@ export async function handleInteraction(
 ): Promise<void> {
     if (!interaction.isChatInputCommand()) return; // Only handle slash commands for now
 
-    const { logger } = services; // Destructure prisma
+    const { logger } = services; // Destructure logger
     const command = commands.get(interaction.commandName);
 
     if (!command) {
@@ -108,25 +102,4 @@ export async function handleInteraction(
             logger.error("Failed to send error reply to interaction:", replyError);
         }
     }
-}
-
-// Helper function (duplicate from registerCommands - consider moving to a shared util)
-async function findCommandFiles(dir: string): Promise<string[]> {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    const files = await Promise.all(
-        entries.map(async (entry) => {
-            const res = path.resolve(dir, entry.name);
-            if (entry.isDirectory()) {
-                return findCommandFiles(res);
-            } if (
-                entry.isFile() &&
-                (res.endsWith(".command.ts") || res.endsWith(".command.js"))
-            ) {
-                // For dynamic import, we need file URLs
-                return pathToFileURL(res).href; // Use the imported pathToFileURL
-            }
-            return [];
-        }),
-    );
-    return files.flat();
 }

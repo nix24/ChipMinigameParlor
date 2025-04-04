@@ -1,15 +1,12 @@
-// src/commands/economy/sell.command.ts
-import type { EconomyService } from "@/services/economy.service";
-import type { LoggerService } from "@/services/logger.service";
+import type { CommandServices } from "@/types/command.types";
 import {
     type ChatInputCommandInteraction,
     EmbedBuilder,
     SlashCommandBuilder,
-    type SlashCommandSubcommandsOnlyBuilder, // Use this type for subcommands
+    type SlashCommandSubcommandsOnlyBuilder,
 } from "discord.js";
-import type { PrismaClient } from "generated/prisma"; // Import needed types
 
-// Custom error class for business logic errors
+// Custom error class
 class SellError extends Error {
     constructor(message: string) {
         super(message);
@@ -17,35 +14,42 @@ class SellError extends Error {
     }
 }
 
-// Transaction result type
-interface SellTransactionResult {
+// Transaction result type for selling a single item stack
+interface SellItemTransactionResult {
     itemName: string;
     quantitySold: number;
     earnings: bigint;
     newBalance: bigint;
-    itemEmoji: string;
+    itemEmoji: string; // Assuming FISH for now
 }
 
-// --- Command Interface ---
+// Transaction result type for selling all
+interface SellAllTransactionResult {
+    totalEarnings: bigint;
+    newBalance: bigint;
+    soldItemDetails: string[];
+}
+
+// --- Command Interface (Adjust services type) ---
 export interface Command {
     data: SlashCommandSubcommandsOnlyBuilder; // Data uses subcommands
     execute(
         interaction: ChatInputCommandInteraction,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient },
+        services: CommandServices, // Use the shared CommandServices type
     ): Promise<void>;
 }
 
-class SellCommand implements Command {
+class SellCommand /* implements Command */ {
     data = new SlashCommandBuilder()
         .setName("sell")
-        .setDescription("Sell items from your inventory for chips.")
+        .setDescription("Sell items or display sellable inventory.")
         .addSubcommand(subcommand =>
             subcommand
                 .setName("item")
-                .setDescription("Sell a specific item.")
+                .setDescription("Sell a specific fish.")
                 .addStringOption(option =>
                     option.setName("name")
-                        .setDescription("The exact name of the item to sell.")
+                        .setDescription("The exact name of the fish to sell.")
                         .setRequired(true)
                 )
                 .addIntegerOption(option =>
@@ -58,14 +62,32 @@ class SellCommand implements Command {
         .addSubcommand(subcommand =>
             subcommand
                 .setName("all")
-                .setDescription("Sell all sellable items (currently FISH) in your inventory.")
+                .setDescription("Sell all fish in your inventory.")
+        )
+        .addSubcommand(subcommand => // New subcommand
+            subcommand
+                .setName("display")
+                .setDescription("Show all sellable fish in your inventory.")
         );
 
     async execute(
         interaction: ChatInputCommandInteraction,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient },
+        services: CommandServices,
     ): Promise<void> {
-        const subcommand = interaction.options.getSubcommand(true); // Get subcommand name
+        const subcommand = interaction.options.getSubcommand(true);
+
+        // Invalidate cache for user stats before potentially modifying balance/inventory
+        // This ensures subsequent reads within the handlers get fresh data if needed after the transaction.
+        // Consider if this is too aggressive or if invalidation should only happen *after* success.
+        // For now, let's invalidate before, assuming reads might happen before the final transaction commit.
+        // const userId = interaction.user.id;
+        // const guildId = interaction.guildId;
+        // if (guildId && (subcommand === 'item' || subcommand === 'all')) {
+        //     const cacheKey = `userGuildStats:${userId}:${guildId}`;
+        //     await services.cache.del(cacheKey);
+        //     services.logger.debug(`Cache invalidated for ${cacheKey} before sell operation.`);
+        // }
+        // --> Decided against pre-invalidation. It's safer to invalidate *after* the DB change is confirmed.
 
         switch (subcommand) {
             case "item":
@@ -74,21 +96,89 @@ class SellCommand implements Command {
             case "all":
                 await this.handleSellAll(interaction, services);
                 break;
+            case "display": // Add case for display
+                await this.handleDisplayInventory(interaction, services);
+                break;
             default:
                 await interaction.reply({ content: "Unknown subcommand.", ephemeral: true });
         }
     }
 
-    // --- Handler for /sell item ---
-    async handleSellItem(
+    // --- Handler for /sell display ---
+    async handleDisplayInventory(
         interaction: ChatInputCommandInteraction,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient },
+        services: CommandServices,
     ) {
         const { logger, prisma } = services;
         const userId = interaction.user.id;
         const guildId = interaction.guildId;
+
+        if (!guildId) {
+            await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+            return;
+        }
+
+        await interaction.deferReply({ ephemeral: true }); // Make display ephemeral
+
+        try {
+            const inventoryItems = await prisma.inventoryItem.findMany({
+                where: {
+                    userId: userId,
+                    item: { // Filter for sellable items
+                        type: 'FISH',
+                        baseValue: { gt: 0 },
+                        // Exclude Junk explicitly if needed, though baseValue: { gt: 0 } might cover it
+                        // name: { not: { equals: 'Junk', mode: 'insensitive' } }
+                    }
+                },
+                include: {
+                    item: true // Include item details
+                },
+                orderBy: {
+                    item: { name: 'asc' } // Sort alphabetically
+                }
+            });
+
+            const embed = new EmbedBuilder()
+                .setTitle(`${interaction.user.username}'s Sellable Fish`)
+                .setColor(0x0099FF); // Blue
+
+            if (inventoryItems.length === 0) {
+                embed.setDescription("You have no fish to sell right now.");
+            } else {
+                let totalValue = 0n;
+                const descriptionLines = inventoryItems.map(invItem => {
+                    const itemValue = BigInt(invItem.item.baseValue);
+                    const itemQuantity = BigInt(invItem.quantity);
+                    const stackValue = itemValue * itemQuantity;
+                    totalValue += stackValue;
+                    // Remove .emoji access, use default
+                    const emoji = '🐠';
+                    return `${emoji} **${invItem.item.name}** x ${invItem.quantity} (@ ${itemValue} each) - Total: **${stackValue}** chips`;
+                });
+                embed.setDescription(descriptionLines.join('\n'));
+                embed.setFooter({ text: `Total potential earnings: ${totalValue} chips` });
+            }
+
+            await interaction.editReply({ embeds: [embed] });
+
+        } catch (error) {
+            logger.error(`Error displaying inventory for user ${userId}:`, error);
+            await interaction.editReply({ content: 'An error occurred while fetching your inventory.' }).catch(() => { });
+        }
+    }
+
+
+    // --- Handler for /sell item ---
+    async handleSellItem(
+        interaction: ChatInputCommandInteraction,
+        services: CommandServices,
+    ) {
+        const { logger, prisma, cache } = services;
+        const userId = interaction.user.id;
+        const guildId = interaction.guildId;
         const itemName = interaction.options.getString("name", true);
-        const quantityToSell = interaction.options.getInteger("quantity") ?? 1; // Default to 1
+        const quantityToSell = interaction.options.getInteger("quantity") ?? 1;
 
         if (!guildId) {
             await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
@@ -98,84 +188,73 @@ class SellCommand implements Command {
         await interaction.deferReply();
 
         try {
-            // 1. Find the item definition
             const itemInfo = await prisma.item.findFirst({
                 where: {
-                    name: {
-                        equals: itemName,
-                        mode: 'insensitive', // Case-insensitive search
-                    },
-                    // Optionally restrict sellable types here if needed
-                    // type: 'FISH'
+                    name: { equals: itemName, mode: 'insensitive' },
                 }
             });
 
             if (!itemInfo) {
-                await interaction.editReply(`Could not find an item named "${itemName}". Check the spelling!`);
-                return;
+                throw new SellError(`Could not find an item named "${itemName}". Check the spelling!`);
             }
 
-            // Check if item is sellable (e.g., only FISH type for now)
+            // Explicitly disallow selling Junk
+            if (itemInfo.name.toLowerCase() === 'junk') {
+                throw new SellError("You cannot sell Junk! It's worthless.");
+            }
+
+            // Check if item is sellable type and has value
             if (itemInfo.type !== 'FISH') {
-                await interaction.editReply(`You cannot sell items of type "${itemInfo.type}" (like ${itemInfo.name}).`);
-                return;
+                throw new SellError(`You can only sell fish right now, not items of type "${itemInfo.type}".`);
             }
             if (itemInfo.baseValue <= 0) {
-                await interaction.editReply(`${itemInfo.name} cannot be sold as it has no value.`);
-                return;
+                throw new SellError(`${itemInfo.name} cannot be sold as it has no value.`);
             }
 
-
-            // 2. Use transaction to check inventory and update balances/inventory
             const transactionResult = await prisma.$transaction(async (tx) => {
-                // Find the user's inventory item within the transaction
                 const inventoryItem = await tx.inventoryItem.findUnique({
-                    where: {
-                        userId_itemId: { userId, itemId: itemInfo.id }
-                    }
+                    where: { userId_itemId: { userId, itemId: itemInfo.id } }
                 });
 
                 if (!inventoryItem || inventoryItem.quantity < quantityToSell) {
                     throw new SellError(`Insufficient quantity. You only have ${inventoryItem?.quantity ?? 0} ${itemInfo.name}.`);
                 }
 
-                // Calculate earnings
                 const earnings = BigInt(quantityToSell) * BigInt(itemInfo.baseValue);
 
-                // Update inventory: decrement or delete
                 if (inventoryItem.quantity === quantityToSell) {
-                    // Delete the record if selling all
-                    await tx.inventoryItem.delete({
-                        where: { id: inventoryItem.id }
-                    });
+                    await tx.inventoryItem.delete({ where: { id: inventoryItem.id } });
                 } else {
-                    // Decrement quantity
                     await tx.inventoryItem.update({
                         where: { id: inventoryItem.id },
                         data: { quantity: { decrement: quantityToSell } }
                     });
                 }
 
-                // Update user balance
                 const updatedStats = await tx.userGuildStats.update({
                     where: { userId_guildId: { userId, guildId } },
                     data: { chips: { increment: earnings } },
                     select: { chips: true }
                 });
 
+                // --- Cache Invalidation ---
+                const cacheKey = `userGuildStats:${userId}:${guildId}`;
+                await cache.del(cacheKey);
+                logger.debug(`Cache invalidated for key: ${cacheKey} after selling item.`);
+
                 return {
                     itemName: itemInfo.name,
                     quantitySold: quantityToSell,
                     earnings: earnings,
                     newBalance: updatedStats.chips,
+                    // Remove .emoji access, use default
                     itemEmoji: '🐠'
-                } satisfies SellTransactionResult;
+                } satisfies SellItemTransactionResult;
             });
 
-            // 3. Send success reply
             const embed = new EmbedBuilder()
                 .setTitle("Item Sold!")
-                .setColor(0x00FF00) // Green
+                .setColor(0x00FF00)
                 .setDescription(`You sold **${transactionResult.quantitySold}x** ${transactionResult.itemEmoji} **${transactionResult.itemName}** for **${transactionResult.earnings}** chips!`)
                 .addFields({ name: "New Balance", value: `💰 ${transactionResult.newBalance} chips` })
                 .setFooter({ text: `Player: ${interaction.user.username}` })
@@ -186,7 +265,9 @@ class SellCommand implements Command {
 
         } catch (error) {
             logger.error(`Error selling item for user ${userId}:`, error);
-            const errorMessage = error instanceof SellError ? error.message : 'An unexpected error occurred while selling the item.';
+            const errorMessage = error instanceof SellError
+                ? error.message
+                : 'An unexpected error occurred while selling the item.';
             await interaction.editReply({ content: errorMessage }).catch(() => { });
         }
     }
@@ -194,9 +275,9 @@ class SellCommand implements Command {
     // --- Handler for /sell all ---
     async handleSellAll(
         interaction: ChatInputCommandInteraction,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient },
+        services: CommandServices,
     ) {
-        const { logger, prisma } = services;
+        const { logger, prisma, cache } = services;
         const userId = interaction.user.id;
         const guildId = interaction.guildId;
 
@@ -208,69 +289,76 @@ class SellCommand implements Command {
         await interaction.deferReply();
 
         try {
-            // Use transaction for atomicity
             const transactionResult = await prisma.$transaction(async (tx) => {
-                // 1. Find all sellable items (FISH type) in inventory
                 const itemsToSell = await tx.inventoryItem.findMany({
                     where: {
                         userId: userId,
                         item: {
                             type: 'FISH',
-                            baseValue: { gt: 0 } // Only items with value > 0
+                            baseValue: { gt: 0 },
+                            // Explicitly exclude Junk here too for safety
+                            // name: { not: { equals: 'Junk', mode: 'insensitive' } }
                         }
                     },
-                    include: {
-                        item: true // Include item details (name, value)
-                    }
+                    include: { item: true }
                 });
 
+                // Use SellError if no items found
                 if (itemsToSell.length === 0) {
-                    throw new Error("You have no fish to sell!");
+                    throw new SellError("You have no fish of value to sell!");
                 }
 
-                // 2. Calculate total earnings and prepare for deletion
                 let totalEarnings = 0n;
                 const soldItemDetails: string[] = [];
-                const itemIdsToDelete: string[] = []; // Store inventory item IDs
+                const itemIdsToDelete: string[] = [];
 
                 for (const invItem of itemsToSell) {
+                    // Skip Junk just in case it got through the query
+                    if (invItem.item.name.toLowerCase() === 'junk') continue;
+
                     const itemValue = BigInt(invItem.item.baseValue);
                     const itemQuantity = BigInt(invItem.quantity);
                     const itemEarning = itemValue * itemQuantity;
                     totalEarnings += itemEarning;
-                    soldItemDetails.push(`- ${invItem.quantity}x ${invItem.item.name} (+${itemEarning} chips)`);
-                    itemIdsToDelete.push(invItem.id); // Add inventory item ID to delete list
+                    // Remove .emoji access, use default
+                    const emoji = '🐠';
+                    soldItemDetails.push(`${emoji} ${invItem.quantity}x ${invItem.item.name} (+${itemEarning})`);
+                    itemIdsToDelete.push(invItem.id);
                 }
 
-                // 3. Delete sold items from inventory
-                await tx.inventoryItem.deleteMany({
-                    where: {
-                        id: { in: itemIdsToDelete }
-                    }
-                });
+                // If only junk was found after filtering
+                if (itemIdsToDelete.length === 0) {
+                    throw new SellError("You only have Junk, which cannot be sold.");
+                }
 
-                // 4. Update user balance
+                await tx.inventoryItem.deleteMany({ where: { id: { in: itemIdsToDelete } } });
+
                 const updatedStats = await tx.userGuildStats.update({
                     where: { userId_guildId: { userId, guildId } },
                     data: { chips: { increment: totalEarnings } },
                     select: { chips: true }
                 });
 
+                // --- Cache Invalidation ---
+                const cacheKey = `userGuildStats:${userId}:${guildId}`;
+                await cache.del(cacheKey);
+                logger.debug(`Cache invalidated for key: ${cacheKey} after selling all.`);
+
                 return {
-                    soldSummary: soldItemDetails.join('\n'),
                     totalEarnings: totalEarnings,
-                    newBalance: updatedStats.chips
-                };
+                    newBalance: updatedStats.chips,
+                    soldItemDetails: soldItemDetails
+                } satisfies SellAllTransactionResult;
             });
 
-            // 5. Send success reply
             const embed = new EmbedBuilder()
                 .setTitle("Sold All Fish!")
-                .setColor(0x00FF00) // Green
-                .setDescription(`You sold all your fish!\n\n**Items Sold:**\n${transactionResult.soldSummary}`)
+                .setColor(0x00FF00)
+                .setDescription(`You sold all your fish!
+${transactionResult.soldItemDetails.join('\n')}`)
                 .addFields(
-                    { name: "Total Earnings", value: `💰 **${transactionResult.totalEarnings}** chips` },
-                    { name: "New Balance", value: `💰 ${transactionResult.newBalance} chips` }
+                    { name: "Total Earnings", value: `💰 ${transactionResult.totalEarnings} chips`, inline: true },
+                    { name: "New Balance", value: `💰 ${transactionResult.newBalance} chips`, inline: true }
                 )
                 .setFooter({ text: `Player: ${interaction.user.username}` })
                 .setTimestamp();
@@ -280,7 +368,10 @@ class SellCommand implements Command {
 
         } catch (error) {
             logger.error(`Error selling all items for user ${userId}:`, error);
-            const errorMessage = error instanceof SellError ? error.message : 'An unexpected error occurred while selling all items.';
+            // Catch SellError specifically
+            const errorMessage = error instanceof SellError
+                ? error.message
+                : 'An unexpected error occurred while selling all items.';
             await interaction.editReply({ content: errorMessage }).catch(() => { });
         }
     }
