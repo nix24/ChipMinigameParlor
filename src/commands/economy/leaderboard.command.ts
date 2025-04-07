@@ -3,6 +3,7 @@ import type { CacheService } from "@/services/cache.service"; // Import CacheSer
 import type { LoggerService } from "@/services/logger.service";
 import type { PrismaService } from "@/services/prisma.service"; // Import PrismaService
 import type { CommandServices } from "@/types/command.types"; // Import CommandServices
+import { retryDbOperation } from "@/utils/dbUtils"; // Import retry utility
 import {
     ActionRowBuilder,
     ButtonBuilder,
@@ -60,12 +61,12 @@ class LeaderboardCommand /* implements Command */ {
         await interaction.deferReply();
 
         try {
-            // Pass cacheService to createLeaderboardPage
+            // Create initial page (uses cache and retry internally now)
             const { embed, row, totalPages } = await this.createLeaderboardPage(
                 interaction,
                 prisma,
                 logger,
-                cacheService, // Pass cache service
+                cacheService,
                 guildId,
                 leaderboardType,
                 currentPage
@@ -73,7 +74,6 @@ class LeaderboardCommand /* implements Command */ {
 
             const message = await interaction.editReply({ embeds: [embed], components: row ? [row] : [] });
 
-            // Don't set up collector if only one page
             if (!row || totalPages <= 1) return;
 
             const collector: InteractionCollector<ButtonInteraction<CacheType>> = message.createMessageComponentCollector({
@@ -83,52 +83,49 @@ class LeaderboardCommand /* implements Command */ {
             });
 
             collector.on('collect', async (buttonInteraction) => {
-                const action = buttonInteraction.customId.split('_')[3]; // prev or next
-
-                if (action === 'prev') {
-                    currentPage--;
-                } else if (action === 'next') {
-                    currentPage++;
-                }
+                const action = buttonInteraction.customId.split('_')[3];
+                if (action === 'prev') currentPage--;
+                else if (action === 'next') currentPage++;
 
                 try {
-                    await buttonInteraction.deferUpdate(); // Acknowledge button press
-                    // Pass cacheService to createLeaderboardPage in collector
+                    await buttonInteraction.deferUpdate();
+                    // Fetch updated page (uses cache and retry internally now)
                     const { embed: updatedEmbed, row: updatedRow } = await this.createLeaderboardPage(
-                        interaction, // Pass original interaction for user context
+                        interaction,
                         prisma,
                         logger,
-                        cacheService, // Pass cache service
+                        cacheService,
                         guildId,
                         leaderboardType,
                         currentPage
                     );
                     await buttonInteraction.editReply({ embeds: [updatedEmbed], components: updatedRow ? [updatedRow] : [] });
                 } catch (error) {
-                    logger.error("Error updating leaderboard page:", error);
+                    logger.error("Error updating leaderboard page (collector):", error);
+                    // Attempt to notify user, ignore errors
                     await buttonInteraction.editReply({ content: "Failed to update leaderboard page.", components: [] }).catch(() => { });
                     collector.stop();
                 }
             });
 
             collector.on('end', (_, reason) => {
-                if (reason !== 'messageDelete' && reason !== 'user') { // Don't edit if manually stopped or message deleted
-                    interaction.editReply({ components: [] }).catch(() => { }); // Remove buttons on timeout
+                if (reason !== 'messageDelete' && reason !== 'user') {
+                    interaction.editReply({ components: [] }).catch(() => { });
                 }
             });
 
         } catch (error) {
-            logger.error(`Error fetching leaderboard (${leaderboardType}) for guild ${guildId}:`, error);
+            logger.error(`Error initially fetching leaderboard (${leaderboardType}) for guild ${guildId} after retries:`, error);
             await interaction.editReply({ content: "An error occurred while fetching the leaderboard." }).catch(() => { });
         }
     }
 
-    // --- Helper to create leaderboard page ---
+    // --- Helper to create leaderboard page (caches the result) ---
     async createLeaderboardPage(
-        interaction: ChatInputCommandInteraction, // Needed for fetching user details
+        interaction: ChatInputCommandInteraction,
         prisma: PrismaService,
         logger: LoggerService,
-        cacheService: CacheService, // Accept CacheService
+        cacheService: CacheService,
         guildId: string,
         type: 'richest' | 'most_played',
         page: number
@@ -136,7 +133,7 @@ class LeaderboardCommand /* implements Command */ {
 
         const cacheKey = `leaderboard:${guildId}:${type}:${page}`;
 
-        // Wrap the entire page generation logic in the cache
+        // Wrap the generation logic in cache
         return cacheService.wrap(cacheKey, async () => {
             logger.debug(`Cache MISS for ${cacheKey}. Generating leaderboard page.`);
 
@@ -145,25 +142,24 @@ class LeaderboardCommand /* implements Command */ {
                 ? { chips: Prisma.SortOrder.desc }
                 : { gamesPlayed: Prisma.SortOrder.desc };
 
-            // Get total count for pagination
-            const totalCount = await prisma.userGuildStats.count({ where: whereClause });
+            // Retry DB operations
+            const getTotalCount = () => prisma.userGuildStats.count({ where: whereClause });
+            const totalCount = await retryDbOperation(getTotalCount, logger, `Leaderboard total count (${guildId}, ${type})`);
+
             const totalPages = Math.ceil(totalCount / PAGE_SIZE);
             let adjustedPage = page;
-            if (adjustedPage < 1) {
-                adjustedPage = 1;
-            } else if (adjustedPage > totalPages && totalPages > 0) {
-                adjustedPage = totalPages;
-            }
-
+            if (adjustedPage < 1) adjustedPage = 1;
+            else if (adjustedPage > totalPages && totalPages > 0) adjustedPage = totalPages;
             const skip = (adjustedPage - 1) * PAGE_SIZE;
 
-            // Fetch the data for the current page
-            const stats = await prisma.userGuildStats.findMany({
+            // Retry fetching stats for the page
+            const getStatsPage = () => prisma.userGuildStats.findMany({
                 where: whereClause,
                 orderBy: orderByClause,
                 take: PAGE_SIZE,
                 skip: skip,
             });
+            const stats = await retryDbOperation(getStatsPage, logger, `Leaderboard stats page (${guildId}, ${type}, ${adjustedPage})`);
 
             // Fetch user details for display names
             const userIds = stats.map(s => s.userId);
@@ -171,15 +167,14 @@ class LeaderboardCommand /* implements Command */ {
             if (userIds.length > 0) {
                 for (const userId of userIds) {
                     try {
-                        // Attempt to fetch user from cache first (optional optimization)
                         const cachedUser = await cacheService.get<User>(`user:${userId}`);
                         if (cachedUser) {
                             userMap.set(userId, cachedUser);
                         } else {
+                            // Consider adding retry specifically for user fetch if it becomes problematic
                             const user = await interaction.client.users.fetch(userId);
                             userMap.set(userId, user);
-                            // Cache fetched user for a short period
-                            await cacheService.set(`user:${userId}`, user, 300 * 1000); // Cache user for 5 mins
+                            await cacheService.set(`user:${userId}`, user, 300 * 1000);
                         }
                     } catch (fetchError) {
                         logger.warn(`Could not fetch user ${userId} for leaderboard:`, fetchError);
@@ -198,16 +193,16 @@ class LeaderboardCommand /* implements Command */ {
                     const userName = userMap.get(stat.userId)?.username ?? "Unknown User";
                     const value = type === 'richest' ? stat.chips : stat.gamesPlayed;
                     const valueSuffix = type === 'richest' ? 'chips' : 'games';
-                    return `**${rank}.** ${userName} - ${value.toLocaleString()} ${valueSuffix}`; // Added toLocaleString()
+                    return `**${rank}.** ${userName} - ${value.toLocaleString()} ${valueSuffix}`;
                 }).join('\n');
             }
 
             // Create the embed
             const embed = new EmbedBuilder()
                 .setTitle(`🏆 ${type === 'richest' ? 'Richest Players' : 'Most Games Played'} - Server Leaderboard`)
-                .setColor(type === 'richest' ? 0xFFD700 : 0x0099FF) // Gold for rich, Blue for games
+                .setColor(type === 'richest' ? 0xFFD700 : 0x0099FF)
                 .setDescription(description)
-                .setFooter({ text: `Page ${adjustedPage} of ${totalPages === 0 ? 1 : totalPages}` }) // Use adjustedPage
+                .setFooter({ text: `Page ${adjustedPage} of ${totalPages === 0 ? 1 : totalPages}` })
                 .setTimestamp();
 
             // Create pagination buttons if needed
@@ -215,7 +210,6 @@ class LeaderboardCommand /* implements Command */ {
             if (totalPages > 1) {
                 row = new ActionRowBuilder<ButtonBuilder>().addComponents(
                     new ButtonBuilder()
-                        // Use adjustedPage in customId to ensure consistency if page was out of bounds
                         .setCustomId(`leaderboard_${type}_${interaction.id}_prev_${adjustedPage}`)
                         .setLabel("◀️ Previous")
                         .setStyle(ButtonStyle.Primary)
@@ -230,7 +224,7 @@ class LeaderboardCommand /* implements Command */ {
 
             return { embed, row, totalPages };
 
-        }, CACHE_TTL_MS); // Pass TTL to wrap
+        }, CACHE_TTL_MS);
     }
 }
 

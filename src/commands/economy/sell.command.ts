@@ -1,4 +1,5 @@
 import type { CommandServices } from "@/types/command.types";
+import { retryDbOperation } from "@/utils/dbUtils"; // Import retry utility
 import {
     type ChatInputCommandInteraction,
     EmbedBuilder,
@@ -121,23 +122,18 @@ class SellCommand /* implements Command */ {
         await interaction.deferReply({ ephemeral: true }); // Make display ephemeral
 
         try {
-            const inventoryItems = await prisma.inventoryItem.findMany({
+            // Define the operation
+            const getInventory = () => prisma.inventoryItem.findMany({
                 where: {
                     userId: userId,
-                    item: { // Filter for sellable items
-                        type: 'FISH',
-                        baseValue: { gt: 0 },
-                        // Exclude Junk explicitly if needed, though baseValue: { gt: 0 } might cover it
-                        // name: { not: { equals: 'Junk', mode: 'insensitive' } }
-                    }
+                    item: { type: 'FISH', baseValue: { gt: 0 } }
                 },
-                include: {
-                    item: true // Include item details
-                },
-                orderBy: {
-                    item: { name: 'asc' } // Sort alphabetically
-                }
+                include: { item: true },
+                orderBy: { item: { name: 'asc' } }
             });
+
+            // Execute with retry
+            const inventoryItems = await retryDbOperation(getInventory, logger, `Display Inventory (${userId})`);
 
             const embed = new EmbedBuilder()
                 .setTitle(`${interaction.user.username}'s Sellable Fish`)
@@ -163,7 +159,7 @@ class SellCommand /* implements Command */ {
             await interaction.editReply({ embeds: [embed] });
 
         } catch (error) {
-            logger.error(`Error displaying inventory for user ${userId}:`, error);
+            logger.error(`Error displaying inventory for user ${userId} after retries:`, error);
             await interaction.editReply({ content: 'An error occurred while fetching your inventory.' }).catch(() => { });
         }
     }
@@ -188,11 +184,11 @@ class SellCommand /* implements Command */ {
         await interaction.deferReply();
 
         try {
-            const itemInfo = await prisma.item.findFirst({
-                where: {
-                    name: { equals: itemName, mode: 'insensitive' },
-                }
+            // Retry finding the item info first (single query)
+            const findItemOp = () => prisma.item.findFirst({
+                where: { name: { equals: itemName, mode: 'insensitive' } },
             });
+            const itemInfo = await retryDbOperation(findItemOp, logger, `Find Item Info (${itemName})`);
 
             if (!itemInfo) {
                 throw new SellError(`Could not find an item named "${itemName}". Check the spelling!`);
@@ -211,7 +207,8 @@ class SellCommand /* implements Command */ {
                 throw new SellError(`${itemInfo.name} cannot be sold as it has no value.`);
             }
 
-            const transactionResult = await prisma.$transaction(async (tx) => {
+            // Define the transaction operation
+            const transactionOp = () => prisma.$transaction(async (tx) => {
                 const inventoryItem = await tx.inventoryItem.findUnique({
                     where: { userId_itemId: { userId, itemId: itemInfo.id } }
                 });
@@ -237,10 +234,9 @@ class SellCommand /* implements Command */ {
                     select: { chips: true }
                 });
 
-                // --- Cache Invalidation ---
                 const cacheKey = `userGuildStats:${userId}:${guildId}`;
                 await cache.del(cacheKey);
-                logger.debug(`Cache invalidated for key: ${cacheKey} after selling item.`);
+                logger.debug(`Cache invalidated inside transaction for key: ${cacheKey}.`);
 
                 return {
                     itemName: itemInfo.name,
@@ -251,6 +247,9 @@ class SellCommand /* implements Command */ {
                     itemEmoji: '🐠'
                 } satisfies SellItemTransactionResult;
             });
+
+            // Execute transaction with retry
+            const transactionResult = await retryDbOperation(transactionOp, logger, `Sell Item Transaction (${userId}, ${itemInfo.name}, ${quantityToSell})`);
 
             const embed = new EmbedBuilder()
                 .setTitle("Item Sold!")
@@ -264,7 +263,7 @@ class SellCommand /* implements Command */ {
             logger.info(`User ${userId} sold ${transactionResult.quantitySold}x ${transactionResult.itemName} for ${transactionResult.earnings} chips.`);
 
         } catch (error) {
-            logger.error(`Error selling item for user ${userId}:`, error);
+            logger.error(`Error selling item for user ${userId} (potentially after retries):`, error);
             const errorMessage = error instanceof SellError
                 ? error.message
                 : 'An unexpected error occurred while selling the item.';
@@ -289,16 +288,12 @@ class SellCommand /* implements Command */ {
         await interaction.deferReply();
 
         try {
-            const transactionResult = await prisma.$transaction(async (tx) => {
+            // Define the transaction operation
+            const transactionOp = () => prisma.$transaction(async (tx) => {
                 const itemsToSell = await tx.inventoryItem.findMany({
                     where: {
                         userId: userId,
-                        item: {
-                            type: 'FISH',
-                            baseValue: { gt: 0 },
-                            // Explicitly exclude Junk here too for safety
-                            // name: { not: { equals: 'Junk', mode: 'insensitive' } }
-                        }
+                        item: { type: 'FISH', baseValue: { gt: 0 } }
                     },
                     include: { item: true }
                 });
@@ -339,10 +334,9 @@ class SellCommand /* implements Command */ {
                     select: { chips: true }
                 });
 
-                // --- Cache Invalidation ---
                 const cacheKey = `userGuildStats:${userId}:${guildId}`;
                 await cache.del(cacheKey);
-                logger.debug(`Cache invalidated for key: ${cacheKey} after selling all.`);
+                logger.debug(`Cache invalidated inside transaction for key: ${cacheKey}.`);
 
                 return {
                     totalEarnings: totalEarnings,
@@ -350,6 +344,9 @@ class SellCommand /* implements Command */ {
                     soldItemDetails: soldItemDetails
                 } satisfies SellAllTransactionResult;
             });
+
+            // Execute transaction with retry
+            const transactionResult = await retryDbOperation(transactionOp, logger, `Sell All Transaction (${userId})`);
 
             const embed = new EmbedBuilder()
                 .setTitle("Sold All Fish!")
@@ -367,7 +364,7 @@ ${transactionResult.soldItemDetails.join('\n')}`)
             logger.info(`User ${userId} sold all fish for ${transactionResult.totalEarnings} chips.`);
 
         } catch (error) {
-            logger.error(`Error selling all items for user ${userId}:`, error);
+            logger.error(`Error selling all items for user ${userId} (potentially after retries):`, error);
             // Catch SellError specifically
             const errorMessage = error instanceof SellError
                 ? error.message

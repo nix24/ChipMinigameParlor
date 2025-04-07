@@ -1,5 +1,5 @@
+import { retryDbOperation } from "@/utils/dbUtils"; // Import the retry utility
 import type { UserGuildStats } from "generated/prisma";
-import { PrismaClientKnownRequestError } from "generated/prisma/runtime/library";
 import type { CacheService } from "./cache.service";
 // import { injectable } from "tsyringe"; // Removed tsyringe
 import type { LoggerService } from "./logger.service";
@@ -28,84 +28,66 @@ export class EconomyService {
         return `userGuildStats:${userId}:${guildId}`;
     }
 
-    // Ensure user and guild exists, then return stats (now wrapped in cache)
-    // This method is now primarily for READ operations, returning cached or fresh data.
+    // Reads stats, potentially from cache or DB (wrapped in cache)
     private async ensureUserGuildStats(userId: string, guildId: string): Promise<UserGuildStats> {
         const cacheKey = this.getUserGuildStatsCacheKey(userId, guildId);
         this.logger.debug(`Ensuring user (${userId}) and guild (${guildId}) stats exist (cache key: ${cacheKey})...`);
 
+        // Wrap the DB operation *inside* the cache wrap function
         return this.cacheService.wrap(cacheKey, async () => {
             this.logger.debug(`Cache MISS for ${cacheKey}. Fetching/creating stats from DB.`);
-            const stats = await this.prisma.$transaction(async (tx) => {
-                // Ensure User exists
-                await tx.user.upsert({
-                    where: { id: userId },
-                    update: {},
-                    create: { id: userId },
-                });
 
-                // Ensure Guild exists
-                await tx.guild.upsert({
-                    where: { id: guildId },
-                    update: {},
-                    create: { id: guildId },
-                });
-
-                // Upsert UserGuildStats (create if not exists, return existing otherwise)
+            // Retry the database transaction itself
+            const operation = () => this.prisma.$transaction(async (tx) => {
+                await tx.user.upsert({ where: { id: userId }, update: {}, create: { id: userId } });
+                await tx.guild.upsert({ where: { id: guildId }, update: {}, create: { id: guildId } });
                 const userStats = await tx.userGuildStats.upsert({
                     where: { userId_guildId: { userId, guildId } },
-                    update: {}, // No update needed here
-                    create: {
-                        userId: userId,
-                        guildId: guildId,
-                        chips: 100n, // Default starting chips
-                        gamesPlayed: 0,
-                        // lastDailyClaimed: null, // Initialize if added to schema
-                    },
-                    // No include needed here unless specifically required by all callers
-                    // include: { InventoryItem: true } // Removed invalid include
+                    update: {},
+                    create: { userId: userId, guildId: guildId, chips: 100n, gamesPlayed: 0 },
                 });
                 return userStats;
             });
+
+            const stats = await retryDbOperation(operation, this.logger, `ensureUserGuildStats Transaction (${userId}, ${guildId})`);
+
             this.logger.debug(`UserGuildStats fetched/created for ${cacheKey}`);
             return stats;
-        }, USER_STATS_CACHE_TTL_MS); // Apply TTL
+        }, USER_STATS_CACHE_TTL_MS);
     }
 
-    // Gets the current balance, ensuring user/guild stats exist (uses cached method)
+    // getBalance now implicitly uses the retry logic within ensureUserGuildStats
     async getBalance(userId: string, guildId: string): Promise<{ balance: bigint | null; success: boolean }> {
-        this.logger.debug(`Getting balance for user (${userId}) in guild (${guildId}) via cache/DB...`);
+        this.logger.debug(`Getting balance for user (${userId}) in guild (${guildId})...`);
         try {
-            // ensureUserGuildStats now handles caching
             const stats = await this.ensureUserGuildStats(userId, guildId);
             return { balance: stats.chips, success: true };
         } catch (error) {
-            this.logger.error(`Failed to get balance for User ${userId}:`, error);
-            return { balance: null, success: false };
+            this.logger.error(`Failed to get balance for User ${userId} after retries:`, error);
+            return { balance: null, success: false }; // Indicate failure after retries
         }
     }
 
-    // Updates the balance atomically, handling insufficient funds and cache invalidation
+    // updateBalance with retry logic
     async updateBalance(userId: string, guildId: string, amountChange: bigint): Promise<{ newBalance: bigint | null; success: boolean }> {
         const cacheKey = this.getUserGuildStatsCacheKey(userId, guildId);
         this.logger.debug(`Updating balance for user (${userId}) in guild (${guildId}) by ${amountChange} (cache key: ${cacheKey})...`);
 
         if (amountChange === 0n) {
-            this.logger.debug("Amount change is zero, skipping update.");
-            const current = await this.getBalance(userId, guildId); // Uses cached ensureUserGuildStats
+            // No DB operation needed, just use getBalance (which has retry via ensureUserGuildStats)
+            const current = await this.getBalance(userId, guildId);
             return { newBalance: current.balance, success: current.success };
         }
 
         try {
-            // Perform the update within a transaction
-            const result = await this.prisma.$transaction(async (tx) => {
-                // We MUST fetch fresh data within the transaction for the check
-                // Using upsert ensures the record exists before attempting findUniqueOrThrow
+            // Define the operation to be retried
+            const operation = () => this.prisma.$transaction(async (tx) => {
+                // Upsert to ensure record exists (important for findUniqueOrThrow)
                 await tx.userGuildStats.upsert({
                     where: { userId_guildId: { userId, guildId } },
                     update: {},
                     create: { userId: userId, guildId: guildId, chips: 100n, gamesPlayed: 0 },
-                    select: { userId: true } // Select minimal field just to ensure creation
+                    select: { userId: true }
                 });
 
                 const currentStats = await tx.userGuildStats.findUniqueOrThrow({
@@ -114,60 +96,48 @@ export class EconomyService {
                 });
 
                 const newBalance = currentStats.chips + amountChange;
-
                 if (amountChange < 0n && newBalance < 0n) {
-                    // Use current balance from within transaction for accurate error message
-                    throw new InsufficientFundsError(
-                        `Cannot decrease balance by ${Math.abs(Number(amountChange))}. Current balance: ${currentStats.chips}`
-                    );
+                    throw new InsufficientFundsError(`Current balance: ${currentStats.chips}. Cannot deduct ${Math.abs(Number(amountChange))}.`);
                 }
 
-                // Update balance
                 const updatedStats = await tx.userGuildStats.update({
                     where: { userId_guildId: { userId, guildId } },
                     data: { chips: newBalance },
                     select: { chips: true },
                 });
 
-                // --- Cache Invalidation ---
                 // Invalidate cache *after* successful DB update within transaction
                 await this.cacheService.del(cacheKey);
-                this.logger.debug(`Cache invalidated for key: ${cacheKey} after balance update.`);
+                this.logger.debug(`Cache invalidated inside transaction for key: ${cacheKey}.`);
 
                 return updatedStats.chips; // Return the new balance
             });
+
+            // Execute the operation with retry logic
+            const result = await retryDbOperation(operation, this.logger, `updateBalance Transaction (${userId}, ${guildId}, ${amountChange})`);
 
             this.logger.debug(`Balance updated for user (${userId}) in guild (${guildId}) to ${result}`);
             return { newBalance: result, success: true };
 
         } catch (error) {
-            // Handle InsufficientFundsError specifically
             if (error instanceof InsufficientFundsError) {
-                this.logger.warn(
-                    `Insufficient funds for User ${userId} in Guild ${guildId}. Change: ${amountChange}`,
-                    error.message // Log the specific message from the error
-                );
-                // Re-throw the specific error for the command layer to handle
-                // The error message now correctly reflects the balance at the time of the check
-                throw error;
+                this.logger.warn(`Insufficient funds for User ${userId} in Guild ${guildId}. Change: ${amountChange}`, error.message);
+                throw error; // Re-throw specific error
             }
-            // Handle other Prisma/general errors
-            if (error instanceof PrismaClientKnownRequestError) {
-                this.logger.error(`Prisma error updating balance for User ${userId}: ${error.code}`, error);
-            } else {
-                this.logger.error(`Failed to update balance for User ${userId}`, error);
-            }
-            // Indicate general failure for non-insufficien-funds errors
+            // Log general failure after retries
+            this.logger.error(`Failed to update balance for User ${userId} after retries:`, error);
             return { newBalance: null, success: false };
         }
     }
 
-    // --- Example: Method to update games played (needs cache invalidation) ---
+    // incrementGamesPlayed with retry logic
     async incrementGamesPlayed(userId: string, guildId: string): Promise<void> {
         const cacheKey = this.getUserGuildStatsCacheKey(userId, guildId);
         this.logger.debug(`Incrementing games played for user (${userId}) in guild (${guildId}) (cache key: ${cacheKey})...`);
+
         try {
-            await this.prisma.$transaction(async (tx) => {
+            // Define the operation
+            const operation = () => this.prisma.$transaction(async (tx) => {
                 await tx.userGuildStats.upsert({
                     where: { userId_guildId: { userId, guildId } },
                     update: { gamesPlayed: { increment: 1 } },
@@ -177,11 +147,15 @@ export class EconomyService {
 
                 // Invalidate cache after successful update
                 await this.cacheService.del(cacheKey);
-                this.logger.debug(`Cache invalidated for key: ${cacheKey} after games played update.`);
+                this.logger.debug(`Cache invalidated inside transaction for key: ${cacheKey}.`);
             });
+
+            // Execute with retry
+            await retryDbOperation(operation, this.logger, `incrementGamesPlayed Transaction (${userId}, ${guildId})`);
+
             this.logger.debug(`Games played incremented for ${userId} in ${guildId}.`);
         } catch (error) {
-            this.logger.error(`Failed to increment games played for User ${userId}`, error);
+            this.logger.error(`Failed to increment games played for User ${userId} after retries:`, error);
             // Decide how to handle error - maybe rethrow or just log
         }
     }
