@@ -183,3 +183,66 @@ Use these commands to help during development:
 ┣ tsconfig.json
 ┣ tsconfig.tsbuildinfo
 ┗ vite.config.ts
+```
+
+## Build Process
+
+The project uses a custom build process that includes:
+
+1. Cleaning the build directory
+2. Generating Prisma client
+3. Compiling TypeScript code
+4. Resolving path aliases
+5. Copying assets
+6. Fixing Prisma imports
+
+### Fixing Prisma Imports
+
+The build process includes a custom step that converts all `generated/prisma` imports to relative imports in the compiled JavaScript files. This is necessary because:
+
+- In TypeScript, imports from `generated/prisma` work correctly with path aliases
+- In the compiled JavaScript, these imports need to be relative to work properly
+
+The script `src/scripts/fixPrismaImports.ts` handles this conversion by:
+
+1. Finding all JavaScript files in the build directory
+2. Replacing imports like `from 'generated/prisma/index'` with relative imports like `from '../../generated/prisma/index'`
+3. Writing the modified files back to disk
+
+## Development
+
+```bash
+# Install dependencies
+pnpm install
+
+# Run in development mode
+pnpm dev
+
+# Build for production
+pnpm build
+
+# Start the bot
+pnpm start
+```
+
+## Testing
+
+```bash
+# Run tests
+pnpm test
+
+# Run tests with coverage
+pnpm test:coverage
+```
+
+## Database
+
+```bash
+# Run database migrations
+pnpm db:migrate
+
+# Generate Prisma client
+pnpm db:generate
+
+# Open Prisma Studio
+pnpm db:studio

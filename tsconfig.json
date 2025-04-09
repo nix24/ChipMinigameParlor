@@ -5,15 +5,18 @@
 		"module": "esnext",
 		"lib": ["ES2023"],
 		"sourceMap": true,
-		"experimentalDecorators": true,
-		"emitDecoratorMetadata": true,
+		"experimentalDecorators": true, // Keep if you use decorators (e.g., with reflect-metadata)
+		"emitDecoratorMetadata": true, // Keep if you use decorators
 		"moduleResolution": "bundler",
 		"resolveJsonModule": true,
-		"isolatedModules": true,
+		"isolatedModules": true, // Keep for now, less likely to be the issue
 		"skipLibCheck": true,
 		"strict": true,
-		"allowJs": true,
-		"checkJs": true,
+		// --- Changes ---
+		"allowJs": false, // Set to false if no JS files in src
+		"checkJs": false, // Set to false if no JS files in src
+		"incremental": false, // Disable incremental builds
+		// --- End Changes ---
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
 		"outDir": "build",
@@ -22,7 +25,6 @@
 		"paths": {
 			"@/*": ["src/*"]
 		},
-		"incremental": true,
 		"removeComments": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true
@@ -30,6 +32,6 @@
 	"tsc-alias": {
 		"resolveFullPaths": true
 	},
-	"include": ["src/**/*.ts", "src/**/*.test.ts"],
-	"exclude": ["node_modules", "build"]
+	"include": ["src/**/*.ts"], // Removed .test.ts - tests usually aren't part of the build output
+	"exclude": ["node_modules", "build", "src/**/*.test.ts"] // Explicitly exclude tests here too
 }
