@@ -1,5 +1,5 @@
 // import { singleton } from "tsyringe"; // Removed tsyringe
-import { PrismaClient } from '../../generated/prisma'
+import { PrismaClient } from "@prisma/client";
 
 // @singleton() // Removed decorator
 export class PrismaService extends PrismaClient {

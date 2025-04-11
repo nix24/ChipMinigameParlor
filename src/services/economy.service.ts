@@ -1,5 +1,5 @@
 import { retryDbOperation } from "@/utils/dbUtils"; // Import the retry utility
-import type { UserGuildStats } from "generated/prisma";
+import type { UserGuildStats } from "@prisma/client";
 import type { CacheService } from "./cache.service";
 // import { injectable } from "tsyringe"; // Removed tsyringe
 import type { LoggerService } from "./logger.service";

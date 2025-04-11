@@ -1,78 +1,75 @@
 {
-	"name": "chipminigameparlor",
-	"version": "0.1.0",
-	"license": "MIT",
-	"private": true,
-	"type": "module",
-	"main": "build/index.js",
-	"scripts": {
-		"dev": "tsx watch src/index.ts",
-		"dev:test": "vitest --silent",
-		"check": "biome check .",
-		"fix": "biome check --fix .",
-		"format": "biome format --write .",
-		"db:migrate": "prisma migrate dev",
-		"db:generate": "prisma generate",
-		"db:studio": "prisma studio",
-		"db:validate": "tsx src/scripts/validateLootTables.ts",
-		"commands:register": "tsx src/core/registerCommands.ts",
-		"test": "vitest run --silent",
-		"test:coverage": "vitest run --coverage --silent",
-
-		"clean": "rimraf build",
-		"copy-assets": "cpx \"generated/prisma/**/*\" build/generated/prisma && cpx \"prisma/schema.prisma\" build/prisma && cpx \".env.example\" build",
-		"build:ts": "tsc --project tsconfig.json",
-		"build:resolve": "tsc-alias --project tsconfig.json",
-		"fix-prisma-imports": "tsx src/scripts/fixPrismaImports.ts",
-		"build": "pnpm run clean && pnpm run db:generate && pnpm run build:ts && pnpm run build:resolve && pnpm run copy-assets && pnpm run fix-prisma-imports",
-		"start": "node build/index.js"
-	},
-	"dependencies": {
-		"@google/generative-ai": "^0.24.0",
-		"@neondatabase/serverless": "^1.0.0",
-		"@prisma/adapter-neon": "^6.5.0",
-		"@prisma/client": "^6.5.0",
-		"cache-manager": "^6.4.1",
-		"cacheable": "^1.8.9",
-		"chalk": "^5.4.1",
-		"date-fns": "^4.1.0",
-		"discord.js": "^14.18.0",
-		"dotenv": "^16.4.7",
-		"keyv": "^5.3.2",
-		"pino": "^9.6.0",
-		"pino-pretty": "^13.0.0",
-		"poker-evaluator": "^2.1.0",
-		"reflect-metadata": "^0.2.2",
-		"tsyringe": "^4.9.1",
-		"ws": "^8.18.1",
-		"zod": "^3.24.2"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "1.9.4",
-		"@tsconfig/node20": "^20.1.4",
-		"@types/node": "^22.10.5",
-		"@types/ws": "^8.18.0",
-		"@vitest/coverage-v8": "^3.0.7",
-		"cpx": "^1.5.0",
-		"globals": "^15.14.0",
-		"prisma": "^6.5.0",
-		"rimraf": "^6.0.1",
-		"tsc-alias": "^1.8.10",
-		"tsx": "^4.19.2",
-		"typescript": "^5.7.2",
-		"vite-tsconfig-paths": "^5.1.4",
-		"vitest": "^3.0.7"
-	},
-	"engines": {
-		"node": ">=22.0.0"
-	},
-	"volta": {
-		"node": "22.13.1",
-		"pnpm": "10.0.0"
-	},
-	"recipe": {
-		"name": "tiramisu",
-		"version": "0.1.0",
-		"description": "a minimal TypeScript stack with Biome and Vitest"
-	}
+    "name": "chipminigameparlor",
+    "version": "0.1.0",
+    "license": "MIT",
+    "private": true,
+    "type": "module",
+    "main": "build/index.js",
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "dev:test": "vitest --silent",
+        "check": "biome check .",
+        "fix": "biome check --fix .",
+        "format": "biome format --write .",
+        "db:migrate": "prisma migrate dev",
+        "db:generate": "prisma generate",
+        "db:studio": "prisma studio",
+        "db:validate": "tsx src/scripts/validateLootTables.ts",
+        "commands:register": "tsx src/core/registerCommands.ts",
+        "test": "vitest run --silent",
+        "test:coverage": "vitest run --coverage --silent",
+        "clean": "rimraf build",
+        "compile": "tsc && tsc-alias",
+        "copy-assets": "cpx \"prisma/schema.prisma\" build && cpx \".env.example\" build",
+        "build": "npm run clean && npm run db:generate && npm run compile && npm run copy-assets",
+        "start": "node build/index.js"
+    },
+    "dependencies": {
+        "@google/generative-ai": "^0.24.0",
+        "@neondatabase/serverless": "^1.0.0",
+        "@prisma/adapter-neon": "^6.5.0",
+        "@prisma/client": "^6.5.0",
+        "cache-manager": "^6.4.1",
+        "cacheable": "^1.8.9",
+        "chalk": "^5.4.1",
+        "date-fns": "^4.1.0",
+        "discord.js": "^14.18.0",
+        "dotenv": "^16.4.7",
+        "keyv": "^5.3.2",
+        "pino": "^9.6.0",
+        "pino-pretty": "^13.0.0",
+        "poker-evaluator": "^2.1.0",
+        "reflect-metadata": "^0.2.2",
+        "tsyringe": "^4.9.1",
+        "ws": "^8.18.1",
+        "zod": "^3.24.2"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "1.9.4",
+        "@tsconfig/node20": "^20.1.4",
+        "@types/node": "^22.10.5",
+        "@types/ws": "^8.18.0",
+        "@vitest/coverage-v8": "^3.0.7",
+        "cpx": "^1.5.0",
+        "globals": "^15.14.0",
+        "prisma": "^6.5.0",
+        "rimraf": "^6.0.1",
+        "tsc-alias": "^1.8.10",
+        "tsx": "^4.19.2",
+        "typescript": "^5.7.2",
+        "vite-tsconfig-paths": "^5.1.4",
+        "vitest": "^3.0.7"
+    },
+    "engines": {
+        "node": ">=22.0.0"
+    },
+    "volta": {
+        "node": "22.13.1",
+        "pnpm": "10.0.0"
+    },
+    "recipe": {
+        "name": "tiramisu",
+        "version": "0.1.0",
+        "description": "a minimal TypeScript stack with Biome and Vitest"
+    }
 }

@@ -1,8 +1,8 @@
+import { Command } from "@/types/types";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 // Assuming Command interface is defined representatively here, adjust if a central type exists
-import type { Command } from "@/commands/games/coinflip.command";
 
 /**
  * Type guard to check if a value is a class constructor for a Command.

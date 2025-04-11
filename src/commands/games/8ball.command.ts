@@ -4,12 +4,12 @@ import type { EconomyService } from "@/services/economy.service";
 import { askEightBall } from "@/services/gemini.service";
 import type { LoggerService } from "@/services/logger.service";
 import type { Command } from "@/types/types";
+import type { PrismaClient } from "@prisma/client";
 import {
     type ChatInputCommandInteraction,
     EmbedBuilder,
     SlashCommandBuilder,
 } from "discord.js";
-import type { PrismaClient } from "generated/prisma";
 
 
 

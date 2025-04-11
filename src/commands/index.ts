@@ -18,7 +18,7 @@ import CoinflipCommand from "./games/coinflip.command";
 import connect4tressCommand from "./games/connect4tress.command";
 
 
-export const allCommands: Command[] = [
+const allCommands: Command[] = [
     //economy
     balanceCommand,
     DailyCommand,
@@ -33,3 +33,13 @@ export const allCommands: Command[] = [
     CoinflipCommand,
     connect4tressCommand,
 ]
+
+//type guard
+function isCommand(command: unknown): command is Command {
+    return command !== null &&
+        typeof command === 'object' &&
+        'execute' in command &&
+        typeof (command as Command).execute === 'function' &&
+        'data' in command;
+}
+export const validatedCommands = allCommands.filter(isCommand);
