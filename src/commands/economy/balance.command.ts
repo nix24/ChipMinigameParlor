@@ -1,22 +1,13 @@
 // src/commands/economy/balance.command.ts
-import type { EconomyService } from "@/services/economy.service";
-import type { LoggerService } from "@/services/logger.service";
+import type { CommandServices } from "@/types/command.types";
+import type { Command } from "@/types/types";
 import {
     type ChatInputCommandInteraction,
     EmbedBuilder,
     SlashCommandBuilder,
-    type SlashCommandOptionsOnlyBuilder,
-    type SlashCommandSubcommandsOnlyBuilder,
 } from "discord.js";
-import type { PrismaClient } from "generated/prisma"; // Keep consistent imports
 
-export interface Command {
-    data: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder | SlashCommandOptionsOnlyBuilder;
-    execute(
-        interaction: ChatInputCommandInteraction,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient },
-    ): Promise<void>;
-}
+
 
 class BalanceCommand implements Command {
     data = new SlashCommandBuilder()
@@ -30,7 +21,7 @@ class BalanceCommand implements Command {
 
     async execute(
         interaction: ChatInputCommandInteraction,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient },
+        services: CommandServices,
     ): Promise<void> {
         const { economy, logger } = services;
         const targetUser = interaction.options.getUser("user") ?? interaction.user;

@@ -1,20 +1,16 @@
 // Define Command interface locally if not available centrally
 // import type { Command } from '@/types/command.types'; // Assuming Command interface path
 import type { CommandServices } from '@/types/command.types';
+import type { Command } from '@/types/types';
 import { retryDbOperation } from "@/utils/dbUtils"; // Import retry utility
 import { formatDistanceToNowStrict } from 'date-fns'; // For calculating time difference
 import { type ChatInputCommandInteraction, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
 
-// Local Command Interface Definition (if not central)
-interface Command {
-    data: Omit<SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">;
-    execute(interaction: ChatInputCommandInteraction, services: CommandServices): Promise<void>;
-}
 
 const DAILY_AMOUNT = 500n; // Amount of chips to grant
 const COOLDOWN_HOURS = 24;
 
-export default class DailyCommand implements Command {
+class DailyCommand implements Command {
     data = new SlashCommandBuilder()
         .setName('daily')
         .setDescription(`Claim your daily ${DAILY_AMOUNT} chips! (Resets every ${COOLDOWN_HOURS} hours)`);
@@ -125,4 +121,6 @@ export default class DailyCommand implements Command {
             await interaction.editReply({ content: 'An error occurred while trying to claim your daily reward.' }).catch(() => { });
         }
     }
-} 
+}
+
+export default new DailyCommand();

@@ -3,22 +3,15 @@ import { replaceEmojiPlaceholders } from "@/lib/emoji";
 import type { EconomyService } from "@/services/economy.service";
 import { askEightBall } from "@/services/gemini.service";
 import type { LoggerService } from "@/services/logger.service";
+import type { Command } from "@/types/types";
 import {
     type ChatInputCommandInteraction,
     EmbedBuilder,
     SlashCommandBuilder,
-    type SlashCommandOptionsOnlyBuilder,
-    type SlashCommandSubcommandsOnlyBuilder,
 } from "discord.js";
 import type { PrismaClient } from "generated/prisma";
 
-export interface Command {
-    data: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder | SlashCommandOptionsOnlyBuilder;
-    execute(
-        interaction: ChatInputCommandInteraction,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient },
-    ): Promise<void>;
-}
+
 
 class EightBallCommand implements Command {
     data = new SlashCommandBuilder()

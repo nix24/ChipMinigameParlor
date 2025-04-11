@@ -3,6 +3,7 @@ import type { CacheService } from "@/services/cache.service"; // Import CacheSer
 import type { LoggerService } from "@/services/logger.service";
 import type { PrismaService } from "@/services/prisma.service"; // Import PrismaService
 import type { CommandServices } from "@/types/command.types"; // Import CommandServices
+import type { Command } from "@/types/types";
 import { retryDbOperation } from "@/utils/dbUtils"; // Import retry utility
 import {
     ActionRowBuilder,
@@ -23,7 +24,7 @@ const PAGE_SIZE = 10; // Number of entries per page
 const COLLECTOR_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 const CACHE_TTL_MS = 60 * 1000; // 60 seconds for leaderboard cache
 
-class LeaderboardCommand /* implements Command */ {
+class LeaderboardCommand implements Command {
     data = new SlashCommandBuilder()
         .setName("leaderboard")
         .setDescription("Shows server leaderboards.")

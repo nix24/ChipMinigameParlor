@@ -1,8 +1,8 @@
 import path from "node:path"; // Keep if needed for logger path resolution or __dirname
 import { fileURLToPath } from "node:url"; // Keep if needed for logger path resolution
-import type { Command } from "@/commands/games/coinflip.command"; // Adjust path as needed
 import { LoggerService } from "@/services/logger.service"; // Use alias
 import type { CommandServices } from "@/types/command.types"; // Import the new interface
+import type { Command } from "@/types/types";
 import { findCommandFiles, isCommandClass } from "@/utils/commandLoader.utils"; // Import helpers
 // src/core/handleInteraction.ts
 import { type BaseInteraction, Collection } from "discord.js";

@@ -1,7 +1,7 @@
 // src/commands/games/blackcat.command.ts
 import type { LoggerService } from "@/services/logger.service";
 import type { CommandServices } from "@/types/command.types";
-import type { Card } from "@/types/types";
+import type { Card, Command } from "@/types/types";
 import {
     calculateHandValue,
     createDeck,
@@ -54,7 +54,7 @@ const optionsSchema = z.object({
 });
 
 // --- Command Implementation ---
-class BlackcatCommand {
+class BlackcatCommand implements Command {
     data = new SlashCommandBuilder()
         .setName("blackcat")
         .setDescription("Play a game of Blackjack!")

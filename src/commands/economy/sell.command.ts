@@ -1,10 +1,10 @@
 import type { CommandServices } from "@/types/command.types";
+import type { Command } from "@/types/types";
 import { retryDbOperation } from "@/utils/dbUtils"; // Import retry utility
 import {
     type ChatInputCommandInteraction,
     EmbedBuilder,
     SlashCommandBuilder,
-    type SlashCommandSubcommandsOnlyBuilder,
 } from "discord.js";
 
 // Custom error class
@@ -32,15 +32,9 @@ interface SellAllTransactionResult {
 }
 
 // --- Command Interface (Adjust services type) ---
-export interface Command {
-    data: SlashCommandSubcommandsOnlyBuilder; // Data uses subcommands
-    execute(
-        interaction: ChatInputCommandInteraction,
-        services: CommandServices, // Use the shared CommandServices type
-    ): Promise<void>;
-}
 
-class SellCommand /* implements Command */ {
+
+class SellCommand implements Command {
     data = new SlashCommandBuilder()
         .setName("sell")
         .setDescription("Sell items or display sellable inventory.")

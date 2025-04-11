@@ -1,30 +1,17 @@
 import { fishingLootTable, selectWeightedRandom } from "@/lib/lootTables";
-// src/commands/fun/fishing.command.ts
-import type { EconomyService } from "@/services/economy.service";
-import type { LoggerService } from "@/services/logger.service";
-import type { PrismaService } from "@/services/prisma.service"; // Import PrismaService
 import type { CommandServices } from "@/types/command.types"; // Import CommandServices
+import type { Command } from "@/types/types";
 import {
     type ChatInputCommandInteraction,
     EmbedBuilder,
     SlashCommandBuilder,
-    type SlashCommandOptionsOnlyBuilder,
-    type SlashCommandSubcommandsOnlyBuilder,
 } from "discord.js";
 
 // Cooldown management (in-memory)
 const fishingCooldowns = new Map<string, number>();
 const COOLDOWN_SECONDS = 30;
 
-export interface Command {
-    data: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder | SlashCommandOptionsOnlyBuilder;
-    execute(
-        interaction: ChatInputCommandInteraction,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaService },
-    ): Promise<void>;
-}
-
-class FishingCommand /* implements Command */ {
+class FishingCommand implements Command {
     data = new SlashCommandBuilder()
         .setName("fishing")
         .setDescription("Cast your line and see what you catch!");

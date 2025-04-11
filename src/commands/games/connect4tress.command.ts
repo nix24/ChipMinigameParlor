@@ -15,13 +15,12 @@ import {
     type InteractionUpdateOptions,
     type MessageCreateOptions,
     SlashCommandBuilder,
-    type SlashCommandOptionsOnlyBuilder,
     type User,
 } from "discord.js";
 import { Prisma, type PrismaClient } from "generated/prisma"; // Assuming Prisma namespace and PrismaClient type are exported
 import { z } from "zod";
 
-import type { Connect4tressGameState } from "@/types/types";
+import type { Command, Connect4tressGameState } from "@/types/types";
 // --- Game Logic Imports (Assume these exist in src/lib/connect4tress.logic.ts) ---
 import {
     COLS,
@@ -47,16 +46,6 @@ const optionsSchema = z.object({
     // Opponent validation happens via interaction.options.getUser
     wager: z.number().int().positive("Wager must be positive.").nullish(),
 });
-
-export interface Command {
-    // Use the specific builder type returned after adding options
-    data: SlashCommandOptionsOnlyBuilder;
-    execute(
-        interaction: ChatInputCommandInteraction,
-        // Pass PrismaClient directly if EconomyService doesn't handle transactions
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient },
-    ): Promise<void>;
-}
 
 class Connect4tressCommand implements Command {
     data = new SlashCommandBuilder()

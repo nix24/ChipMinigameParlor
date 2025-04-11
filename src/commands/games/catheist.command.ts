@@ -1,7 +1,7 @@
 // src/commands/games/catheist.command.ts
-import type { EconomyService } from "@/services/economy.service";
 import type { LoggerService } from "@/services/logger.service";
-import type { Card } from "@/types/types";
+import type { CommandServices } from "@/types/command.types";
+import type { Card, Command } from "@/types/types";
 import { createDeck, renderHand, shuffleDeck } from "@/utils/blackcat.logic"; // Reuse deck logic
 import { dealPokerHands, evaluatePokerHands, getHandRankName } from "@/utils/poker.logic"; // Use poker logic
 import {
@@ -16,9 +16,7 @@ import {
     type InteractionCollector,
     type Message,
     SlashCommandBuilder,
-    type SlashCommandOptionsOnlyBuilder,
 } from "discord.js";
-import type { PrismaClient } from "generated/prisma";
 import { z } from "zod";
 
 // --- Game State ---
@@ -58,14 +56,6 @@ const optionsSchema = z.object({
     wager: z.number().int().positive("Wager must be positive."),
 });
 
-// --- Command Interface ---
-export interface Command {
-    data: SlashCommandOptionsOnlyBuilder | SlashCommandBuilder; // Adjust as needed
-    execute(
-        interaction: ChatInputCommandInteraction,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient },
-    ): Promise<void>;
-}
 
 // --- Command Implementation ---
 class CatHeistCommand implements Command {
@@ -82,7 +72,7 @@ class CatHeistCommand implements Command {
 
     async execute(
         interaction: ChatInputCommandInteraction,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient },
+        services: CommandServices,
     ): Promise<void> {
         const { economy } = services;
         const userId = interaction.user.id;
@@ -185,7 +175,7 @@ class CatHeistCommand implements Command {
     // --- Start a Round ---
     async startRound(
         interaction: ChatInputCommandInteraction,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient },
+        services: CommandServices,
         wager: bigint,
         potentialLoss: bigint, // Pass calculated loss
         gameId: string,
@@ -235,7 +225,7 @@ class CatHeistCommand implements Command {
     // --- Setup Collector for Reveal/Next Round ---
     setupRoundCollector(
         gameState: CatHeistGameState,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient }
+        services: CommandServices,
     ) {
         const { logger } = services;
         const revealId = `catheist_reveal_${gameState.gameId}_${gameState.currentRound}`;
@@ -279,7 +269,7 @@ class CatHeistCommand implements Command {
     // --- Handle Round Reveal ---
     async handleRoundReveal(
         gameState: CatHeistGameState,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient }
+        services: CommandServices,
     ) {
         const { logger } = services;
         gameState.status = 'round_reveal';
@@ -367,7 +357,7 @@ class CatHeistCommand implements Command {
     // --- End Game ---
     async endGame(
         gameState: CatHeistGameState,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient },
+        services: CommandServices,
         result: 'win' | 'lose' | 'tie' // Overall game result
     ) {
         const { economy, logger } = services;

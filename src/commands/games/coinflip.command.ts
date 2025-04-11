@@ -1,5 +1,6 @@
 import { InsufficientFundsError } from "@/services/economy.service"; // Regular import for value usage
 import type { CommandServices } from "@/types/command.types"; // Import the CommandServices interface
+import type { Command } from "@/types/types";
 // src/commands/games/coinflip.command.ts
 import {
     type ChatInputCommandInteraction,
@@ -9,14 +10,6 @@ import {
 // import { injectable } from "tsyringe"; // Removed tsyringe
 import { z } from "zod";
 
-// Define the structure of a command module
-export interface Command {
-    data: SlashCommandBuilder;
-    execute(
-        interaction: ChatInputCommandInteraction,
-        services: CommandServices, // Use the CommandServices interface
-    ): Promise<void>;
-}
 
 // Input validation schema
 const coinflipOptionsSchema = z.object({
@@ -186,9 +179,6 @@ class CoinflipCommand implements Command {
     }
 }
 
-// Export the class for manual instantiation if needed elsewhere, or default instance
-// Since we removed DI from core, let's export the class directly.
-// If other commands need DI, they might need separate handling.
-export default CoinflipCommand;
+
 // If you were creating instances manually elsewhere:
-// export default new CoinflipCommand();
+export default new CoinflipCommand();

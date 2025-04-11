@@ -2,7 +2,7 @@ import type {
     EconomyService,
 } from "@/services/economy.service";
 import type { LoggerService } from "@/services/logger.service";
-import type { BigBlastGameState, PlayerInfo } from "@/types/types";
+import type { BigBlastGameState, Command, PlayerInfo } from "@/types/types";
 // src/commands/games/bigblast.command.ts
 import {
     ActionRowBuilder,
@@ -13,8 +13,6 @@ import {
     EmbedBuilder,
     type Message,
     SlashCommandBuilder,
-    type SlashCommandOptionsOnlyBuilder,
-    type SlashCommandSubcommandsOnlyBuilder,
     type User
 } from "discord.js";
 import type { PrismaClient } from "generated/prisma";
@@ -32,13 +30,7 @@ const optionsSchema = z.object({
 });
 
 // --- Command ---
-export interface Command {
-    data: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder | SlashCommandOptionsOnlyBuilder;
-    execute(
-        interaction: ChatInputCommandInteraction,
-        services: { economy: EconomyService; logger: LoggerService; prisma: PrismaClient },
-    ): Promise<void>;
-}
+
 
 class BigBlastCommand implements Command {
     data = new SlashCommandBuilder()

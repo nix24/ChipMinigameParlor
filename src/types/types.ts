@@ -1,4 +1,5 @@
-import type { ButtonInteraction, CacheType, ChatInputCommandInteraction, InteractionCollector, Message } from "discord.js";
+import type { ButtonInteraction, CacheType, ChatInputCommandInteraction, InteractionCollector, Message, SlashCommandBuilder, SlashCommandOptionsOnlyBuilder, SlashCommandSubcommandsOnlyBuilder } from "discord.js";
+import type { CommandServices } from "./command.types";
 
 
 //----big blast
@@ -56,4 +57,13 @@ export interface Card {
     rank: 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K';
     value: number; // Base value (Ace=11 initially, adjusted later)
     emoji: string; // Combined suit+rank emoji or text
+}
+
+// ----Command interface
+export interface Command {
+    data: SlashCommandOptionsOnlyBuilder | SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder; // Adjust as needed
+    execute(
+        interaction: ChatInputCommandInteraction,
+        services: CommandServices,
+    ): Promise<void>;
 }
