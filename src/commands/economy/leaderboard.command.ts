@@ -17,11 +17,18 @@ import {
     SlashCommandBuilder,
     type User,
 } from "discord.js";
-import { Prisma } from "generated/prisma"; // Keep Prisma for SortOrder
 
+// Since we're using a custom output directory for Prisma, we need to use the correct path
 const PAGE_SIZE = 10; // Number of entries per page
 const COLLECTOR_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 const CACHE_TTL_MS = 60 * 1000; // 60 seconds for leaderboard cache
+
+interface UserStats {
+    userId: string;
+    guildId: string;
+    chips: bigint;
+    gamesPlayed: number;
+}
 
 class LeaderboardCommand /* implements Command */ {
     data = new SlashCommandBuilder()
@@ -130,21 +137,25 @@ class LeaderboardCommand /* implements Command */ {
         type: 'richest' | 'most_played',
         page: number
     ): Promise<{ embed: EmbedBuilder, row: ActionRowBuilder<ButtonBuilder> | null, totalPages: number }> {
-
         const cacheKey = `leaderboard:${guildId}:${type}:${page}`;
 
-        // Wrap the generation logic in cache
-        return cacheService.wrap(cacheKey, async () => {
+        interface LeaderboardCacheResult {
+            embed: EmbedBuilder;
+            row: ActionRowBuilder<ButtonBuilder> | null;
+            totalPages: number;
+        }
+
+        return cacheService.wrap<LeaderboardCacheResult>(cacheKey, async () => {
             logger.debug(`Cache MISS for ${cacheKey}. Generating leaderboard page.`);
 
             const whereClause = { guildId: guildId };
             const orderByClause = type === 'richest'
-                ? { chips: Prisma.SortOrder.desc }
-                : { gamesPlayed: Prisma.SortOrder.desc };
+                ? { chips: 'desc' as const }
+                : { gamesPlayed: 'desc' as const };
 
-            // Retry DB operations
+            // Retry DB operations with proper type assertions
             const getTotalCount = () => prisma.userGuildStats.count({ where: whereClause });
-            const totalCount = await retryDbOperation(getTotalCount, logger, `Leaderboard total count (${guildId}, ${type})`);
+            const totalCount: number = await retryDbOperation(getTotalCount, logger, `Leaderboard total count (${guildId}, ${type})`);
 
             const totalPages = Math.ceil(totalCount / PAGE_SIZE);
             let adjustedPage = page;
@@ -152,14 +163,14 @@ class LeaderboardCommand /* implements Command */ {
             else if (adjustedPage > totalPages && totalPages > 0) adjustedPage = totalPages;
             const skip = (adjustedPage - 1) * PAGE_SIZE;
 
-            // Retry fetching stats for the page
+            // Retry fetching stats for the page with proper type
             const getStatsPage = () => prisma.userGuildStats.findMany({
                 where: whereClause,
                 orderBy: orderByClause,
                 take: PAGE_SIZE,
                 skip: skip,
             });
-            const stats = await retryDbOperation(getStatsPage, logger, `Leaderboard stats page (${guildId}, ${type}, ${adjustedPage})`);
+            const stats: UserStats[] = await retryDbOperation(getStatsPage, logger, `Leaderboard stats page (${guildId}, ${type}, ${adjustedPage})`);
 
             // Fetch user details for display names
             const userIds = stats.map(s => s.userId);
@@ -188,7 +199,7 @@ class LeaderboardCommand /* implements Command */ {
             if (stats.length === 0) {
                 description = "No stats found for this server yet!";
             } else {
-                description = stats.map((stat, index) => {
+                description = stats.map((stat: UserStats, index: number) => {
                     const rank = skip + index + 1;
                     const userName = userMap.get(stat.userId)?.username ?? "Unknown User";
                     const value = type === 'richest' ? stat.chips : stat.gamesPlayed;

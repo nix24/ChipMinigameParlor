@@ -1,7 +1,6 @@
 import "reflect-metadata";
 import { Client, Events, GatewayIntentBits } from "discord.js";
 import dotenv from "dotenv";
-// import { container } from "tsyringe"; // Removed tsyringe container usage for core services
 import { handleInteraction, loadCommands } from "./core/handleInteraction";
 import { registerCommands } from "./core/registerCommands";
 import { CacheService } from "./services/cache.service";

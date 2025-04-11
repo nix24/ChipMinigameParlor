@@ -1,6 +1,7 @@
 // src/commands/economy/balance.command.ts
 import type { EconomyService } from "@/services/economy.service";
 import type { LoggerService } from "@/services/logger.service";
+import type { PrismaClient } from "@prisma/client";
 import {
     type ChatInputCommandInteraction,
     EmbedBuilder,
@@ -8,7 +9,6 @@ import {
     type SlashCommandOptionsOnlyBuilder,
     type SlashCommandSubcommandsOnlyBuilder,
 } from "discord.js";
-import type { PrismaClient } from "generated/prisma"; // Keep consistent imports
 
 export interface Command {
     data: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder | SlashCommandOptionsOnlyBuilder;

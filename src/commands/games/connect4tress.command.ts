@@ -3,6 +3,7 @@ import {
     InsufficientFundsError,
 } from "@/services/economy.service";
 import type { LoggerService } from "@/services/logger.service";
+import { Prisma, type PrismaClient } from "@prisma/client"; // Assuming Prisma namespace and PrismaClient type are exported
 // src/commands/games/connect4tress.command.ts
 import {
     ActionRowBuilder,
@@ -18,7 +19,6 @@ import {
     type SlashCommandOptionsOnlyBuilder,
     type User,
 } from "discord.js";
-import { Prisma, type PrismaClient } from "generated/prisma"; // Assuming Prisma namespace and PrismaClient type are exported
 import { z } from "zod";
 
 import type { Connect4tressGameState } from "@/types/types";

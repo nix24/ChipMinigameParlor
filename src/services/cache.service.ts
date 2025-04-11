@@ -1,14 +1,12 @@
 import { type Cache, createCache } from "cache-manager";
 import { KeyvCacheableMemory } from "cacheable";
 import { Keyv } from "keyv";
-import { singleton } from "tsyringe"; // Keep tsyringe if used elsewhere, otherwise remove
 import type { LoggerService } from "./logger.service";
 
 // Configuration constants (could be moved to a config file)
 const DEFAULT_TTL_MS = 60 * 1000; // 60 seconds
 const LRU_SIZE = 500; // Max items in LRU cache
 
-@singleton() // Remove if not using tsyringe
 export class CacheService {
     public readonly cache: Cache;
     private readonly logger: LoggerService;

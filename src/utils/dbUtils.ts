@@ -1,6 +1,5 @@
 import type { LoggerService } from '@/services/logger.service';
-import { Prisma } from 'generated/prisma';
-
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 const MAX_RETRIES = 2; // Number of retries after the initial attempt
 const RETRY_DELAY_MS = 500; // Delay between retries in milliseconds
 
@@ -11,7 +10,7 @@ const RETRY_DELAY_MS = 500; // Delay between retries in milliseconds
  * @returns True if the error suggests a retry might help, false otherwise.
  */
 function isRetryableDbError(error: unknown): boolean {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error instanceof PrismaClientKnownRequestError) {
         // Official Prisma codes for connection issues
         // P1008: Operations timed out
         // P1017: Server has closed the connection.
