@@ -1,5 +1,5 @@
 // src/lib/lootTables.ts
-import type { ItemType } from "generated/prisma"; // Import generated enum type
+import type { ItemType } from "@prisma/client"; // Import generated enum type
 
 export interface LootItem {
     itemId: number; // Corresponds to the ID in the Item table

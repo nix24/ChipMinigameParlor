@@ -1,16 +1,11 @@
-import path from "node:path"; // Keep if needed for logger path resolution or __dirname
-import { fileURLToPath } from "node:url"; // Keep if needed for logger path resolution
+import { validatedCommands } from "@/commands";
 import { LoggerService } from "@/services/logger.service"; // Use alias
 import type { CommandServices } from "@/types/command.types"; // Import the new interface
 import type { Command } from "@/types/types";
-import { findCommandFiles, isCommandClass } from "@/utils/commandLoader.utils"; // Import helpers
 // src/core/handleInteraction.ts
 import { type BaseInteraction, Collection } from "discord.js";
 import { container as globalContainer } from "tsyringe";
 
-// Get the directory name in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Cache commands to avoid reloading them on every interaction
 const commands = new Collection<string, Command>();
@@ -18,39 +13,15 @@ const commands = new Collection<string, Command>();
 export async function loadCommands(): Promise<void> {
     const logger = globalContainer.resolve(LoggerService);
     commands.clear(); // Clear existing commands before reloading
-    // Construct path using the derived __dirname
-    const commandsPath = path.join(__dirname, "../commands");
-    const commandFiles = await findCommandFiles(commandsPath);
 
-    for (const file of commandFiles) {
-        try {
-            // Use dynamic import() for ESM
-            const commandModule = await import(file);
-            const commandCandidate = commandModule.default || commandModule;
-            let commandInstance: Command | null = null;
+    logger.info(`Loading ${validatedCommands.length} commands...`);
 
-            // Use imported helper
-            if (isCommandClass(commandCandidate)) {
-                // Instantiate the Command class
-                commandInstance = new commandCandidate();
-            } else if (commandCandidate && typeof commandCandidate.execute === 'function' && commandCandidate.data) {
-                // It's likely already an instance that fits the Command structure
-                commandInstance = commandCandidate as Command;
-            }
-
-            // Validate the final instance
-            if (commandInstance && typeof commandInstance.execute === "function" && commandInstance.data) {
-                commands.set(commandInstance.data.name, commandInstance);
-                logger.debug(`Interaction handler loaded command: ${commandInstance.data.name}`);
-            } else {
-                logger.warn(
-                    `Invalid command structure found for interaction handling in: ${fileURLToPath(file)}`,
-                );
-            }
-        } catch (error) {
-            logger.error(`Error loading command for interaction handler ${fileURLToPath(file)}:`, error);
-        }
+    for (const commandInstance of validatedCommands) {
+        commands.set(commandInstance.data.name, commandInstance);
+        logger.debug(`Loaded command: ${commandInstance.data.name}`);
     }
+
+    logger.info(`Loaded ${commands.size} commands.`);
 }
 
 // Call loadCommands once during startup (e.g., in bootstrap after DI setup)

@@ -5,6 +5,7 @@ import type { PrismaService } from "@/services/prisma.service"; // Import Prisma
 import type { CommandServices } from "@/types/command.types"; // Import CommandServices
 import type { Command } from "@/types/types";
 import { retryDbOperation } from "@/utils/dbUtils"; // Import retry utility
+import { Prisma } from "@prisma/client"; // Keep Prisma for SortOrder
 import {
     ActionRowBuilder,
     ButtonBuilder,
@@ -18,7 +19,6 @@ import {
     SlashCommandBuilder,
     type User,
 } from "discord.js";
-import { Prisma } from "generated/prisma"; // Keep Prisma for SortOrder
 
 const PAGE_SIZE = 10; // Number of entries per page
 const COLLECTOR_TIMEOUT = 5 * 60 * 1000; // 5 minutes

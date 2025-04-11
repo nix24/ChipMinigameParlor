@@ -1,6 +1,6 @@
 import { type LootItem, fishingLootTable } from '@/lib/lootTables';
+import { type Item, PrismaClient } from '@prisma/client';
 import chalk from 'chalk';
-import { type Item, PrismaClient } from 'generated/prisma';
 
 const prisma = new PrismaClient();
 

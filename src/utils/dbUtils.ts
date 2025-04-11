@@ -1,5 +1,5 @@
 import type { LoggerService } from '@/services/logger.service';
-import { Prisma } from 'generated/prisma';
+import { Prisma } from '@prisma/client';
 
 const MAX_RETRIES = 2; // Number of retries after the initial attempt
 const RETRY_DELAY_MS = 500; // Delay between retries in milliseconds

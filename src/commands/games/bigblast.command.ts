@@ -3,6 +3,7 @@ import type {
 } from "@/services/economy.service";
 import type { LoggerService } from "@/services/logger.service";
 import type { BigBlastGameState, Command, PlayerInfo } from "@/types/types";
+import type { PrismaClient } from "@prisma/client";
 // src/commands/games/bigblast.command.ts
 import {
     ActionRowBuilder,
@@ -15,7 +16,6 @@ import {
     SlashCommandBuilder,
     type User
 } from "discord.js";
-import type { PrismaClient } from "generated/prisma";
 import { z } from "zod";
 
 // Initialize the activeGames map
