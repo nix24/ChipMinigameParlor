@@ -5,25 +5,34 @@ import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from "@google/ge
 const API_KEY = process.env.GEMINI_API_KEY;
 
 if (!API_KEY) {
-    console.warn("⚠️ GEMINI_API_KEY environment variable is not set. 8ball command will not work.");
+  console.warn("⚠️ GEMINI_API_KEY environment variable is not set. 8ball command will not work.");
 }
 
 const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
 const model = genAI ? genAI.getGenerativeModel({ model: "gemini-2.0-flash" }) : null; // Use flash for speed
 
 const generationConfig = {
-    temperature: 0.9, // Slightly more creative/varied
-    topK: 1,
-    topP: 1,
-    maxOutputTokens: 150, // Limit response length
+  temperature: 0.9, // Slightly more creative/varied
+  topK: 1,
+  topP: 1,
+  maxOutputTokens: 150, // Limit response length
 };
 
 // Safety settings - adjust as needed
 const safetySettings = [
-    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+  },
 ];
 
 // Persona Prompt
@@ -53,31 +62,34 @@ Now, answer the user's question.
 User Question:
 `;
 
-export async function askEightBall(question: string, logger?: LoggerService): Promise<string | null> {
-    if (!model) {
-        logger?.error("Gemini AI model not initialized. Check API Key.");
-        return "My crystal ball is cloudy... API key might be missing.";
+export async function askEightBall(
+  question: string,
+  logger?: LoggerService
+): Promise<string | null> {
+  if (!model) {
+    logger?.error("Gemini AI model not initialized. Check API Key.");
+    return "My crystal ball is cloudy... API key might be missing.";
+  }
+
+  const fullPrompt = `${personaPrompt}"${question}"`;
+
+  try {
+    logger?.debug("Sending prompt to Gemini:", { prompt: fullPrompt }); // Log less verbosely
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+      generationConfig,
+      safetySettings,
+    });
+
+    const response = result.response;
+    const text = response.text();
+    logger?.debug("Received response from Gemini:", { text });
+    return text;
+  } catch (error) {
+    logger?.error("Error calling Gemini API:", error);
+    if (error instanceof Error && error.message.includes("SAFETY")) {
+      return "Whoa there, couldn't answer that one due to safety filters! Try asking differently.";
     }
-
-    const fullPrompt = `${personaPrompt}"${question}"`;
-
-    try {
-        logger?.debug("Sending prompt to Gemini:", { prompt: fullPrompt }); // Log less verbosely
-        const result = await model.generateContent({
-            contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
-            generationConfig,
-            safetySettings,
-        });
-
-        const response = result.response;
-        const text = response.text();
-        logger?.debug("Received response from Gemini:", { text });
-        return text;
-    } catch (error) {
-        logger?.error("Error calling Gemini API:", error);
-        if (error instanceof Error && error.message.includes('SAFETY')) {
-            return "Whoa there, couldn't answer that one due to safety filters! Try asking differently.";
-        }
-        return "My crystal ball cracked! Couldn't get an answer right now.";
-    }
+    return "My crystal ball cracked! Couldn't get an answer right now.";
+  }
 }

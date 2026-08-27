@@ -1,0 +1,23 @@
+{
+  "indentStyle": "tab",
+  "printWidth": 100,
+  "singleQuote": false,
+  "trailingComma": "es5",
+  "semi": true,
+  "ignorePatterns": [
+    "build/**",
+    "coverage/**",
+    ".agent/**",
+    ".agents/**",
+    ".claude/**",
+    ".codex/**",
+    ".continue/**",
+    ".cursor/**",
+    ".gemini/**",
+    ".opencode/**",
+    ".pi/**",
+    ".roo/**",
+    ".windsurf/**",
+    "tools/oxlint/anti-slop/**"
+  ]
+}

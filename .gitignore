@@ -44,3 +44,7 @@ repomix*
 #pnpm
 pnpm-lock.yaml
 pnpm-workspace.yaml
+
+# Local agent tooling
+.agents/
+skills-lock.json

@@ -17,29 +17,30 @@ import catheistCommand from "./games/catheist.command";
 import CoinflipCommand from "./games/coinflip.command";
 import connect4tressCommand from "./games/connect4tress.command";
 
-
 const allCommands: Command[] = [
-    //economy
-    balanceCommand,
-    DailyCommand,
-    fishingCommand,
-    leaderboardCommand,
-    sellCommand,
-    //games
-    EightBallCommand,
-    bigblastCommand,
-    blackcatCommand,
-    catheistCommand,
-    CoinflipCommand,
-    connect4tressCommand,
-]
+  //economy
+  balanceCommand,
+  DailyCommand,
+  fishingCommand,
+  leaderboardCommand,
+  sellCommand,
+  //games
+  EightBallCommand,
+  bigblastCommand,
+  blackcatCommand,
+  catheistCommand,
+  CoinflipCommand,
+  connect4tressCommand,
+];
 
 //type guard
 function isCommand(command: unknown): command is Command {
-    return command !== null &&
-        typeof command === 'object' &&
-        'execute' in command &&
-        typeof (command as Command).execute === 'function' &&
-        'data' in command;
+  return (
+    command !== null &&
+    typeof command === "object" &&
+    "execute" in command &&
+    typeof (command as Command).execute === "function" &&
+    "data" in command
+  );
 }
 export const validatedCommands = allCommands.filter(isCommand);

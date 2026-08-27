@@ -7,8 +7,8 @@ import type { PrismaService } from "@/services/prisma.service";
  * Defines the structure for services passed to command execute methods.
  */
 export interface CommandServices {
-    economy: EconomyService;
-    logger: LoggerService;
-    prisma: PrismaService;
-    cache: CacheService;
-} 
+  economy: EconomyService;
+  logger: LoggerService;
+  prisma: PrismaService;
+  cache: CacheService;
+}

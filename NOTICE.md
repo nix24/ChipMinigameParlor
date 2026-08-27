@@ -1,10 +1,11 @@
 # Notice
 
-This project, **Tiramisu**, is part of the Fresh ecosystem - a collection of modern *Turbo Stacks* for web artisans.
+This project, **Tiramisu**, is part of the Fresh ecosystem - a collection of modern _Turbo Stacks_ for web artisans.
 
 ## Attribution
 
 Tiramisu is powered by:
+
 - [Fresh](https://github.com/mislam/fresh) - a swiss army knife to create modern **Turbo Stacks** for web artisans.
 - [TypeScript](https://www.typescriptlang.org/) - a strongly typed programming language
 - [Biome](https://biomejs.dev/) - a modern linter and formatter
