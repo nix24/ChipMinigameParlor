@@ -1,0 +1,10 @@
+CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE guilds (id TEXT PRIMARY KEY NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE user_guild_stats (user_id TEXT NOT NULL, guild_id TEXT NOT NULL, chips INTEGER NOT NULL DEFAULT 100, games_played INTEGER NOT NULL DEFAULT 0, last_daily_claimed_at INTEGER, PRIMARY KEY (user_id, guild_id));
+CREATE INDEX user_guild_stats_leaderboard ON user_guild_stats (guild_id, chips);
+CREATE INDEX user_guild_stats_games ON user_guild_stats (guild_id, games_played);
+CREATE TABLE items (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL UNIQUE, base_value INTEGER NOT NULL DEFAULT 0, kind TEXT NOT NULL DEFAULT 'JUNK');
+CREATE TABLE inventory_items (user_id TEXT NOT NULL, item_id INTEGER NOT NULL, quantity INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (user_id, item_id));
+CREATE TABLE roguelite_runs (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL, guild_id TEXT NOT NULL, state TEXT NOT NULL, status TEXT NOT NULL, updated_at INTEGER NOT NULL);
+CREATE INDEX roguelite_runs_player ON roguelite_runs (user_id, guild_id, status);
+CREATE TABLE game_settlements (game_id TEXT PRIMARY KEY NOT NULL, guild_id TEXT NOT NULL, settled_at INTEGER NOT NULL);
