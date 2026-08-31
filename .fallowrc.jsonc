@@ -1,0 +1,13 @@
+{
+  "ignorePatterns": ["tools/oxlint/anti-slop/**"],
+  "ignoreDependencies": ["@oxlint/plugins"],
+  "usedClassMembers": [
+    {
+      "extends": "DurableObject",
+      "members": ["fetch", "alarm"],
+    },
+  ],
+  "duplicates": {
+    "ignore": ["worker-configuration.d.ts", "tools/oxlint/anti-slop/rules/**"],
+  },
+}

@@ -1,73 +1,41 @@
 {
   "name": "chipminigameparlor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "license": "MIT",
   "type": "module",
-  "main": "build/index.js",
   "scripts": {
-    "dev": "bun --watch src/index.ts",
-    "dev:test": "bun test --watch",
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types",
+    "typecheck": "tsc --noEmit",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
     "format": "oxfmt .",
     "format:check": "oxfmt . --check",
-    "check": "bun run lint && bun run format:check",
-    "fix": "bun run lint:fix && bun run format",
-    "db:migrate": "prisma migrate dev",
-    "db:generate": "prisma generate",
-    "db:studio": "prisma studio",
-    "db:validate": "bun src/scripts/validateLootTables.ts",
-    "commands:register": "bun src/core/registerCommands.ts",
-    "test": "bun test",
-    "test:coverage": "bun test --coverage",
-    "clean": "rimraf build",
-    "typecheck": "tsc --noEmit",
-    "compile": "tsc && tsc-alias",
-    "copy-assets": "cpx \"prisma/schema.prisma\" build && cpx \".env.example\" build",
-    "build": "bun run clean && bun run db:generate && bun run compile && bun run copy-assets",
-    "start": "bun build/index.js"
+    "check": "bun run lint && bun run format:check && bun run typecheck",
+    "test": "vitest run",
+    "dev:test": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply chip-minigame-parlor --local",
+    "db:migrate:remote": "wrangler d1 migrations apply chip-minigame-parlor --remote",
+    "commands:register": "bun src/scripts/register-commands.ts"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.0",
-    "@neondatabase/serverless": "^1.0.0",
-    "@prisma/adapter-neon": "^6.5.0",
-    "@prisma/client": "^6.5.0",
-    "cache-manager": "^6.4.1",
-    "cacheable": "^1.8.9",
-    "chalk": "^5.4.1",
-    "date-fns": "^4.1.0",
-    "discord.js": "^14.18.0",
-    "dotenv": "^16.4.7",
-    "keyv": "^5.3.2",
-    "pino": "^9.6.0",
-    "pino-pretty": "^13.0.0",
-    "poker-evaluator": "^2.1.0",
-    "reflect-metadata": "^0.2.2",
-    "tsyringe": "^4.9.1",
-    "ws": "^8.18.1",
-    "zod": "^3.24.2"
+    "drizzle-orm": "0.45.2"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.1.1",
     "@oxlint/plugins": "1.80.0",
-    "@tsconfig/node20": "^20.1.4",
-    "@types/node": "^22.10.5",
-    "@types/ws": "^8.18.0",
-    "cpx": "^1.5.0",
+    "drizzle-kit": "0.31.10",
     "oxfmt": "0.65.0",
     "oxlint": "1.80.0",
-    "prisma": "^6.5.0",
-    "rimraf": "^6.0.1",
-    "tsc-alias": "^1.8.10",
-    "typescript": "^5.7.2"
+    "typescript": "^5.8.2",
+    "vitest": "4.1.11",
+    "wrangler": "4.127.0"
   },
   "engines": {
     "bun": ">=1.4.0"
   },
-  "packageManager": "bun@1.4.0",
-  "recipe": {
-    "name": "tiramisu",
-    "version": "0.1.0",
-    "description": "a minimal TypeScript stack with Bun and Oxc"
-  }
+  "packageManager": "bun@1.4.0"
 }

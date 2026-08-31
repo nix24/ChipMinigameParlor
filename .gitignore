@@ -48,3 +48,7 @@ pnpm-workspace.yaml
 # Local agent tooling
 .agents/
 skills-lock.json
+
+# Cloudflare local state and secrets
+.dev.vars*
+.wrangler/

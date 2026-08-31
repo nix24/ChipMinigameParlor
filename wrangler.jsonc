@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "chip-minigame-parlor",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-27",
+  "secrets": { "required": ["DISCORD_CLIENT_ID", "DISCORD_BOT_TOKEN", "DISCORD_PUBLIC_KEY"] },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "chip-minigame-parlor",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "drizzle/migrations",
+    },
+  ],
+  "durable_objects": { "bindings": [{ "name": "GAME_SESSIONS", "class_name": "GameSession" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameSession"] }],
+}

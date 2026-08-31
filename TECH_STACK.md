@@ -1,134 +1,19 @@
-# Chip Minigame Parlor: Tech Stack
+# Current technology stack
 
-Snapshot taken 2026-08-27 from the committed manifests and source tree. This is a Discord bot service, not a web application.
-
-## At a glance
-
-```mermaid
-flowchart LR
-    D[Discord gateway and REST API] --> B[Node.js bot]
-    B --> C[Slash-command handlers]
-    C --> S[Application services]
-    S --> P[(PostgreSQL via Prisma)]
-    C --> G[Google Gemini]
-    S --> M[(In-memory cache)]
-```
-
-| Area                      | Current choice                                                                |
-| ------------------------- | ----------------------------------------------------------------------------- |
-| Runtime                   | Bun 1.4+ with native TypeScript and ESM support                               |
-| Language                  | TypeScript 5.7 (ESNext output)                                                |
-| Bot platform              | discord.js 14.18, Discord API v10 REST registration                           |
-| Persistence               | Prisma 6.5 and PostgreSQL                                                     |
-| Hosted database direction | Neon packages are declared; the source currently uses `PrismaClient` directly |
-| AI                        | Google Generative AI SDK, Gemini 2.0 Flash for `/8ball`                       |
-| Cache                     | `cache-manager` + Keyv + Cacheable in-process memory store                    |
-| Logging                   | Pino, with `pino-pretty` in development                                       |
-| Validation                | Zod in interactive game state handling                                        |
-| Tests                     | Bun Test, including native coverage support                                   |
-| Code quality              | Oxlint 1.80, Oxfmt 0.65, and the vendored anti-slop rules                     |
-| Package manager           | Bun (`bun.lock`)                                                              |
-
-## Composition
-
-```mermaid
-flowchart TB
-    subgraph Runtime
-        I[src/index.ts\nBootstrap and lifecycle]
-        H[src/core\nInteraction dispatch and command registration]
-        Q[src/commands\n11 slash-command modules]
-        L[src/lib and src/utils\nGame rules, loot, retries, emojis]
-        V[src/services\nEconomy, database, cache, logging, Gemini]
-    end
-
-    I --> H --> Q
-    Q --> V
-    Q --> L
-    V --> DB[(PostgreSQL)]
-    V --> Cache[(Memory cache)]
-    Q --> AI[Gemini API]
-```
-
-The entry point loads environment variables, creates the logger, cache, Prisma, and economy services, validates the Discord token and database URL, checks the database with `SELECT 1`, then starts the Discord client. It handles `SIGINT` and `SIGTERM` by disconnecting the database and cache before destroying the client.
-
-Discord interactions are limited to chat-input slash commands. Command definitions are statically collected in `src/commands/index.ts`, loaded into a Discord collection once at startup, and registered as global application commands through Discord's REST API when the client is ready.
-
-## Product surface
-
-```text
-Command modules  [###########] 11
-Economy          [#####......]  5  balance, daily, fishing, leaderboard, sell
-Games            [######.....]  6  8ball, bigblast, blackcat, catheist, coinflip, connect4tress
-```
-
-The source contains 4,818 TypeScript lines outside `src/scripts`. Game-specific rules live mainly in `src/utils`; reusable application behavior is concentrated in the services layer.
-
-## Data and state
-
-```mermaid
-erDiagram
-    USER ||--o{ USER_GUILD_STATS : has
-    GUILD ||--o{ USER_GUILD_STATS : has
-    USER ||--o{ INVENTORY_ITEM : owns
-    ITEM ||--o{ INVENTORY_ITEM : describes
-
-    USER { string id "Discord user ID" }
-    GUILD { string id "Discord guild ID" }
-    USER_GUILD_STATS { bigint chips "Per-guild balance" }
-    INVENTORY_ITEM { int quantity }
-    ITEM { string name }
-```
-
-Prisma's schema targets PostgreSQL. Its durable model is intentionally guild-scoped: `UserGuildStats` joins a Discord user and guild, and stores chip balance, games played, and the daily-claim timestamp. Inventory is global to a user and references an `Item` catalogue. The schema has no committed migration files yet, only `prisma/schema.prisma`.
-
-The cache is local process memory only, with a default 60-second TTL and an LRU limit of 500 items. It is useful for fast reads but does not share state across bot replicas or survive a restart.
-
-## Integrations and configuration
-
-| Integration   | Purpose                                              | Required configuration                                   |
-| ------------- | ---------------------------------------------------- | -------------------------------------------------------- |
-| Discord       | Gateway events and global slash-command registration | `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`                 |
-| PostgreSQL    | Economy, guild statistics, inventory, item catalogue | `DATABASE_URL`; Prisma schema also requires `DIRECT_URL` |
-| Google Gemini | `/8ball` response generation                         | `GEMINI_API_KEY`                                         |
-
-`NODE_ENV` controls the Pino logging level and whether Prisma emits query-level logs. The declared Neon serverless and Prisma Neon-adapter packages signal an intended Neon deployment, but they are not imported in the current source path.
-
-## Build, development, and verification
+| Layer                  | Choice                                                     |
+| ---------------------- | ---------------------------------------------------------- |
+| Runtime and host       | Cloudflare Workers, managed with Wrangler and Bun          |
+| Discord transport      | HTTP Interactions with Ed25519 signature verification      |
+| Durable data           | Cloudflare D1 (SQLite) with Drizzle ORM and SQL migrations |
+| Live game coordination | SQLite-backed Durable Objects, one object per game/lobby   |
+| Tests                  | Vitest with Cloudflare's Worker plugin                     |
+| Quality                | Oxlint, Oxfmt, and the vendored anti-slop rules            |
 
 ```mermaid
 flowchart LR
-    A[TypeScript source] --> B[tsc]
-    B --> C[tsc-alias]
-    C --> D[Copy Prisma schema and env example]
-    E[Prisma schema] --> F[prisma generate]
-    F --> B
-    D --> G[build/index.js]
+  D[Discord] --> W[Worker]
+  W --> E[(D1 economy and runs)]
+  W --> G[Durable Object per game]
 ```
 
-| Workflow            | Script and tooling                                                                   |
-| ------------------- | ------------------------------------------------------------------------------------ |
-| Local bot loop      | `bun run dev` runs `bun --watch src/index.ts`                                        |
-| Production build    | clean, `prisma generate`, `tsc`, `tsc-alias`, and `cpx` asset copying                |
-| Production start    | `bun build/index.js`                                                                 |
-| Database work       | Prisma migrate, generate, and Studio scripts                                         |
-| Command publication | `bun run commands:register`                                                          |
-| Lint and format     | `bun run lint`, `bun run format:check`, `bun run check`, and `bun run fix` using Oxc |
-| Tests               | `bun test` and `bun test --coverage`                                                 |
-
-Vite and Vitest have been removed because the bot has no web bundle and Bun provides its watch mode and test runner directly. The TypeScript compiler remains in the production build for type-checked JavaScript output and alias resolution. No test files are currently present, so `bun test` reports that no tests were found.
-
-## Current implementation notes
-
-- The application combines direct service construction in `src/index.ts` with remaining `tsyringe` container usage during command loading and registration. That is the present dependency-injection shape, rather than a fully container-managed design.
-- `.env.example` includes the Discord, database, and Gemini variables, but it omits `DIRECT_URL`, which the Prisma datasource declares as required. The README does document it.
-- The Oxc migration intentionally did not clean source code. `bun run typecheck` passes; Oxlint reports 23 existing anti-slop findings, Oxfmt reports existing format differences, and Bun reports that no tests exist.
-- The local anti-slop plugin is vendored at `tools/oxlint/anti-slop`; its installer files remain local under `.agents/` and are ignored by Git.
-
-## Primary source files
-
-- [package.json](package.json) - declared runtime, dependencies, and Bun scripts
-- [src/index.ts](src/index.ts) - process bootstrap and bot lifecycle
-- [src/core/handleInteraction.ts](src/core/handleInteraction.ts) - slash-command dispatch
-- [src/core/registerCommands.ts](src/core/registerCommands.ts) - Discord REST registration
-- [prisma/schema.prisma](prisma/schema.prisma) - persistent data model
-- [.oxlintrc.json](.oxlintrc.json) and [.oxfmtrc.json](.oxfmtrc.json) - code-quality configuration
+The old Discord gateway, Prisma/Postgres/Neon, and in-process cache have been removed. Big Blast is the first game migrated: it currently provides a persistent, four-player lobby with join/start components and a timeout alarm. Turn mechanics are intentionally the next feature slice.
