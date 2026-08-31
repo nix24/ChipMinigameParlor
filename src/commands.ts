@@ -1,4 +1,6 @@
 import { EconomyRepository } from "./db/repository";
+import { RunRepository } from "./db/run-repository";
+import { MAX_CHIPS } from "./db/schema";
 import {
   message,
   type DiscordInteraction,
@@ -6,6 +8,8 @@ import {
   userId,
 } from "./discord/protocol";
 import type { Env } from "./env";
+
+const MAX_COIN_FLIP_STAKE = Math.floor(MAX_CHIPS / 2);
 
 export const applicationCommands = [
   "balance",
@@ -32,6 +36,7 @@ export const applicationCommands = [
             type: 4,
             required: true,
             min_value: 1,
+            max_value: MAX_COIN_FLIP_STAKE,
           },
           {
             name: "choice",
@@ -54,7 +59,9 @@ const inProgress = (name: string): InteractionResponse =>
 function coinFlipStake(value: string | number | boolean | undefined): number | undefined {
   if (value === undefined || value === true || value === false) return undefined;
   const stake = Number(value);
-  return Number.isSafeInteger(stake) && stake > 0 ? stake : undefined;
+  return Number.isSafeInteger(stake) && stake > 0 && stake <= MAX_COIN_FLIP_STAKE
+    ? stake
+    : undefined;
 }
 
 export async function handleCommand(
@@ -73,7 +80,7 @@ export async function handleCommand(
       true
     );
   if (name === "daily") {
-    const result = await economy.claimDaily(actorId, guildId);
+    const result = await economy.claimDaily(interaction.id, actorId, guildId);
     return message(
       result.claimed
         ? `Daily claimed. Balance: ${result.chips} chips.`
@@ -116,22 +123,37 @@ export async function handleCommand(
     if (choice !== "heads" && choice !== "tails")
       return message("Choose either Heads or Tails.", true);
 
-    const result = crypto.getRandomValues(new Uint8Array(1))[0] % 2 === 0 ? "heads" : "tails";
-    const won = result === choice;
-    const settlement = await economy.settleCoinFlip(actorId, guildId, amount, won);
+    const generatedOutcome =
+      crypto.getRandomValues(new Uint8Array(1))[0] % 2 === 0 ? "heads" : "tails";
+    const settlement = await economy.settleWager({
+      transactionId: interaction.id,
+      userId: actorId,
+      guildId,
+      game: "coinflip",
+      requestFingerprint: `coinflip:${actorId}:${guildId}:${amount}:${choice}`,
+      stake: amount,
+      payout: generatedOutcome === choice ? amount * 2 : 0,
+      result: generatedOutcome,
+    });
     if (!settlement.settled)
       return message(
-        `You don't have enough chips. Your balance is ${settlement.chips} chips.`,
+        settlement.reason === "insufficient-funds"
+          ? `You don't have enough chips. Your balance is ${settlement.chips} chips.`
+          : `That wager would exceed the supported chip balance. Your balance is ${settlement.chips} chips.`,
         true
       );
-    const outcome = result === "heads" ? "Heads" : "Tails";
+    const storedOutcome = settlement.result;
+    if (storedOutcome !== "heads" && storedOutcome !== "tails")
+      throw new Error("Stored Coin Flip outcome is invalid.");
+    const won = storedOutcome === choice;
+    const outcome = storedOutcome === "heads" ? "Heads" : "Tails";
     return message(
       `The coin landed on **${outcome}**. You ${won ? "won" : "lost"} **${amount}** chips. New balance: **${settlement.chips}**.`
     );
   }
   if (name === "roguelite")
     return message(
-      `Roguelite run ${await economy.resumeRun(actorId, guildId)} is saved and ready for its game loop.`,
+      `Roguelite run ${await new RunRepository(env).resume(actorId, guildId)} is saved and ready for its game loop.`,
       true
     );
   return inProgress(name);

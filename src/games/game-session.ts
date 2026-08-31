@@ -113,7 +113,7 @@ export class GameSession extends DurableObject<Env> {
     const game = await this.ctx.storage.get<GameState>("game");
     if (!game) throw new Error("Game session was not initialized.");
     return game;
-  } 
+  }
 
   private async write(game: GameState): Promise<void> {
     await this.ctx.storage.put("game", game);

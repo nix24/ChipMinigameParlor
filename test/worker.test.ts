@@ -1,32 +1,58 @@
-import { beforeAll, describe, expect, it } from "vitest";
 import { env } from "cloudflare:workers";
+import { applyD1Migrations, type D1Migration } from "cloudflare:test";
+import { beforeAll, describe, expect, it } from "vitest";
 import { handleCommand } from "../src/commands";
+import { EconomyRepository } from "../src/db/repository";
+import { RunRepository } from "../src/db/run-repository";
 import type { DiscordInteraction } from "../src/discord/protocol";
+
+// SAFETY: Vitest supplies TEST_MIGRATIONS from the binding configured in vitest.config.ts.
+const testEnv = env as typeof env & { TEST_MIGRATIONS: D1Migration[] };
+
+function command(
+  id: string,
+  name: string,
+  userId: string,
+  guildId: string,
+  options?: NonNullable<DiscordInteraction["data"]>["options"]
+): DiscordInteraction {
+  return {
+    id,
+    token: "token",
+    type: 2,
+    guild_id: guildId,
+    member: { user: { id: userId } },
+    data: { name, options },
+  };
+}
+
+function coinFlip(id: string, userId: string, guildId: string, amount = 5): DiscordInteraction {
+  return command(id, "coinflip", userId, guildId, [
+    { name: "amount", value: amount },
+    { name: "choice", value: "heads" },
+  ]);
+}
+
+async function stats(userId: string, guildId: string): Promise<{ chips: number; games: number }> {
+  const row = await env.DB.prepare(
+    "SELECT chips, games_played AS games FROM user_guild_stats WHERE user_id = ? AND guild_id = ?"
+  )
+    .bind(userId, guildId)
+    .first<{ chips: number; games: number }>();
+  if (!row) throw new Error("Expected player stats.");
+  return row;
+}
+
+async function transactionCount(id: string): Promise<number> {
+  const row = await env.DB.prepare("SELECT COUNT(*) AS count FROM chip_transactions WHERE id = ?")
+    .bind(id)
+    .first<{ count: number }>();
+  return row?.count ?? 0;
+}
 
 describe("interaction worker", () => {
   beforeAll(async () => {
-    await env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY NOT NULL,
-        created_at INTEGER NOT NULL
-      )
-    `).run();
-    await env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS guilds (
-        id TEXT PRIMARY KEY NOT NULL,
-        created_at INTEGER NOT NULL
-      )
-    `).run();
-    await env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS user_guild_stats (
-        user_id TEXT NOT NULL,
-        guild_id TEXT NOT NULL,
-        chips INTEGER NOT NULL DEFAULT 100,
-        games_played INTEGER NOT NULL DEFAULT 0,
-        last_daily_claimed_at INTEGER,
-        PRIMARY KEY (user_id, guild_id)
-      )
-    `).run();
+    await applyD1Migrations(env.DB, testEnv.TEST_MIGRATIONS);
   });
 
   it("does not expose a GET route", async () => {
@@ -71,24 +97,94 @@ describe("interaction worker", () => {
     expect(await duplicate.text()).toContain("2/4");
   });
 
-  it("settles a Coin Flip wager", async () => {
-    const response = await handleCommand(env, {
-      id: "coinflip-test",
-      token: "token",
-      type: 2,
-      guild_id: "coinflip-guild",
-      member: { user: { id: "coinflip-player" } },
-      data: {
-        name: "coinflip",
-        options: [
-          { name: "amount", value: 5 },
-          { name: "choice", value: "heads" },
-        ],
-      },
-    } satisfies DiscordInteraction);
+  it("settles a Coin Flip wager exactly once", async () => {
+    const interaction = coinFlip("coinflip-once", "coinflip-player", "coinflip-guild");
+    const first = await handleCommand(env, interaction);
+    const duplicate = await handleCommand(env, interaction);
 
-    expect(response.type).toBe(4);
-    expect(response.data?.content).toMatch(/coin landed on \*\*(Heads|Tails)\*\*/);
-    expect(response.data?.content).toMatch(/New balance: \*\*(95|105)\*\*/);
+    expect(first).toEqual(duplicate);
+    expect(first.data?.content).toMatch(/coin landed on \*\*(Heads|Tails)\*\*/);
+    expect(first.data?.content).toMatch(/New balance: \*\*(95|105)\*\*/);
+    const player = await stats("coinflip-player", "coinflip-guild");
+    expect([95, 105]).toContain(player.chips);
+    expect(player.games).toBe(1);
+    expect(await transactionCount(interaction.id)).toBe(1);
+  });
+
+  it("serializes concurrent duplicate Coin Flip deliveries", async () => {
+    const interaction = coinFlip(
+      "coinflip-concurrent",
+      "concurrent-player",
+      "concurrent-guild",
+      10
+    );
+    const [first, duplicate] = await Promise.all([
+      handleCommand(env, interaction),
+      handleCommand(env, interaction),
+    ]);
+
+    expect(first).toEqual(duplicate);
+    const player = await stats("concurrent-player", "concurrent-guild");
+    expect([90, 110]).toContain(player.chips);
+    expect(player.games).toBe(1);
+    expect(await transactionCount(interaction.id)).toBe(1);
+  });
+
+  it("does not record or count an unaffordable wager", async () => {
+    const interaction = coinFlip("coinflip-insufficient", "poor-player", "poor-guild", 101);
+    const response = await handleCommand(env, interaction);
+
+    expect(response.data?.content).toContain("don't have enough chips");
+    expect(await stats("poor-player", "poor-guild")).toEqual({ chips: 100, games: 0 });
+    expect(await transactionCount(interaction.id)).toBe(0);
+  });
+
+  it("makes daily claims retry-safe", async () => {
+    const interaction = command("daily-once", "daily", "daily-player", "daily-guild");
+    const first = await handleCommand(env, interaction);
+    const duplicate = await handleCommand(env, interaction);
+    const tooSoon = await handleCommand(
+      env,
+      command("daily-too-soon", "daily", "daily-player", "daily-guild")
+    );
+
+    expect(first).toEqual(duplicate);
+    expect(first.data?.content).toContain("Balance: 600 chips");
+    expect(tooSoon.data?.content).toContain("not ready");
+    expect(await transactionCount(interaction.id)).toBe(1);
+  });
+
+  it("enforces database invariants", async () => {
+    const economy = new EconomyRepository(env);
+    await economy.balance("constraint-player", "constraint-guild");
+
+    await expect(
+      env.DB.prepare("UPDATE user_guild_stats SET chips = -1 WHERE user_id = ? AND guild_id = ?")
+        .bind("constraint-player", "constraint-guild")
+        .run()
+    ).rejects.toThrow();
+    await expect(
+      env.DB.prepare(
+        "INSERT INTO inventory_items (user_id, guild_id, item_id, quantity) VALUES (?, ?, ?, ?)"
+      )
+        .bind("missing-player", "missing-guild", 999, 1)
+        .run()
+    ).rejects.toThrow();
+  });
+
+  it("keeps one active roguelite run under concurrency", async () => {
+    const runs = new RunRepository(env);
+    const [first, concurrent] = await Promise.all([
+      runs.resume("run-player", "run-guild"),
+      runs.resume("run-player", "run-guild"),
+    ]);
+
+    expect(first).toBe(concurrent);
+    const row = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM roguelite_runs WHERE user_id = ? AND guild_id = ? AND status = 'active'"
+    )
+      .bind("run-player", "run-guild")
+      .first<{ count: number }>();
+    expect(row?.count).toBe(1);
   });
 });

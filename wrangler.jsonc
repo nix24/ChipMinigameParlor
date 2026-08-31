@@ -7,11 +7,29 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "chip-minigame-parlor",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_name": "chip-minigame-parlor-production",
+      "database_id": "dcd753a0-5035-4794-bb73-4beec7c800d1",
       "migrations_dir": "drizzle/migrations",
     },
   ],
   "durable_objects": { "bindings": [{ "name": "GAME_SESSIONS", "class_name": "GameSession" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameSession"] }],
+  "env": {
+    "staging": {
+      "secrets": {
+        "required": ["DISCORD_CLIENT_ID", "DISCORD_BOT_TOKEN", "DISCORD_PUBLIC_KEY"],
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "chip-minigame-parlor-staging",
+          "database_id": "02a8f5ec-feaf-4f68-8970-ab508baa6b1d",
+          "migrations_dir": "drizzle/migrations",
+        },
+      ],
+      "durable_objects": {
+        "bindings": [{ "name": "GAME_SESSIONS", "class_name": "GameSession" }],
+      },
+    },
+  },
 }
