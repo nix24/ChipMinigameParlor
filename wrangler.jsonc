@@ -3,6 +3,13 @@
   "name": "chip-minigame-parlor",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-27",
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "vars": {
+    "APP_ENV": "production",
+    "GATEWAY_ENABLED": "true",
+    "TEST_GUILD_ID": "1115740106918203453",
+  },
+  "triggers": { "crons": ["* * * * *"] },
   "secrets": { "required": ["DISCORD_CLIENT_ID", "DISCORD_BOT_TOKEN", "DISCORD_PUBLIC_KEY"] },
   "d1_databases": [
     {
@@ -12,10 +19,40 @@
       "migrations_dir": "drizzle/migrations",
     },
   ],
-  "durable_objects": { "bindings": [{ "name": "GAME_SESSIONS", "class_name": "GameSession" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameSession"] }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "GAME_SESSIONS", "class_name": "GameSession" },
+      { "name": "BOT_CONTROL", "class_name": "GatewayPresence" },
+    ],
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["GameSession"] },
+    { "tag": "v2", "new_sqlite_classes": ["GatewayPresence"] },
+  ],
   "env": {
+    "local": {
+      "secrets": { "required": ["DISCORD_CLIENT_ID", "DISCORD_BOT_TOKEN", "DISCORD_PUBLIC_KEY"] },
+      "vars": { "APP_ENV": "local", "GATEWAY_ENABLED": "false", "TEST_GUILD_ID": "" },
+      "triggers": { "crons": [] },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "chip-minigame-parlor-local",
+          "database_id": "local-only",
+          "migrations_dir": "drizzle/migrations",
+          "remote": false,
+        },
+      ],
+      "durable_objects": {
+        "bindings": [
+          { "name": "GAME_SESSIONS", "class_name": "GameSession" },
+          { "name": "BOT_CONTROL", "class_name": "GatewayPresence" },
+        ],
+      },
+    },
     "staging": {
+      "vars": { "APP_ENV": "staging", "GATEWAY_ENABLED": "false", "TEST_GUILD_ID": "" },
+      "triggers": { "crons": [] },
       "secrets": {
         "required": ["DISCORD_CLIENT_ID", "DISCORD_BOT_TOKEN", "DISCORD_PUBLIC_KEY"],
       },
@@ -28,7 +65,10 @@
         },
       ],
       "durable_objects": {
-        "bindings": [{ "name": "GAME_SESSIONS", "class_name": "GameSession" }],
+        "bindings": [
+          { "name": "GAME_SESSIONS", "class_name": "GameSession" },
+          { "name": "BOT_CONTROL", "class_name": "GatewayPresence" },
+        ],
       },
     },
   },
