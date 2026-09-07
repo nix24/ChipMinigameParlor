@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7f3df" />
+    <meta
+      name="description"
+      content="A little luck. A lot of lift. Coinflip at Chip's Minigame Parlor."
+    />
+    <title>Coinflip · Chip's Minigame Parlor</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script type="module" src="./main.ts"></script>
+  </head>
+  <body>
+    <svg class="symbol-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <symbol id="smile" viewBox="0 0 100 100">
+          <ellipse cx="35" cy="41" rx="5" ry="9" fill="currentColor" />
+          <ellipse cx="65" cy="41" rx="5" ry="9" fill="currentColor" />
+          <path
+            d="M31 60 Q50 81 69 60"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="6"
+            stroke-linecap="round"
+          />
+          <path
+            d="M18 52h9m46 0h9"
+            stroke="currentColor"
+            stroke-width="4"
+            stroke-linecap="round"
+            opacity=".4"
+          />
+        </symbol>
+        <symbol id="star" viewBox="0 0 100 100">
+          <path
+            d="m50 12 11 25 28 3-21 19 6 28-24-14-24 14 6-28-21-19 28-3Z"
+            fill="currentColor"
+            stroke="currentColor"
+            stroke-linejoin="round"
+            stroke-width="5"
+          />
+          <path d="m40 43 3 9m14-9-3 9" stroke="#ffda65" stroke-width="4" stroke-linecap="round" />
+        </symbol>
+        <symbol id="spark" viewBox="0 0 100 100">
+          <path d="M50 0Q53 47 100 50Q53 53 50 100Q47 53 0 50Q47 47 50 0" fill="currentColor" />
+        </symbol>
+        <symbol id="sound-icon" viewBox="0 0 24 24">
+          <path
+            d="M4 9h4l5-4v14l-5-4H4Zm13-1q4 4 0 8m3-11q7 7 0 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linejoin="round"
+            stroke-linecap="round"
+          />
+        </symbol>
+      </defs>
+    </svg>
+    <div class="parlor">
+      <header class="topbar">
+        <div class="brand" aria-label="Chip's Minigame Parlor">
+          <span class="brand-coin"
+            ><svg><use href="#smile" /></svg
+          ></span>
+          <span>CHIP'S<span class="brand-subtitle">MINIGAME PARLOR</span></span>
+        </div>
+        <div class="toolbar">
+          <button
+            id="motion"
+            class="quiet-button"
+            type="button"
+            aria-pressed="false"
+            title="Reduce animation"
+          >
+            Motion
+          </button>
+          <button
+            id="sound"
+            class="icon-button"
+            type="button"
+            aria-pressed="false"
+            aria-label="Turn sound on"
+            title="Turn sound on"
+          >
+            <svg aria-hidden="true"><use href="#sound-icon" /></svg
+            ><span class="sound-slash" aria-hidden="true"></span>
+          </button>
+          <button id="help" class="icon-button" type="button" aria-label="How to play">?</button>
+        </div>
+      </header>
+      <main>
+        <div class="intro">
+          <div>
+            <p class="eyebrow">THE LITTLE CLASSIC, WITH A LITTLE EXTRA</p>
+            <h1>
+              Coin<span>flip</span><svg aria-hidden="true"><use href="#spark" /></svg>
+            </h1>
+            <p class="tagline">A little luck. A lot of lift.</p>
+          </div>
+          <div class="mode-block">
+            <span id="mode-label" class="mode-pill">PRACTICE · NO SERVER CHIPS</span
+            ><button id="connect" class="text-button" type="button" hidden>
+              Connect server chips ↗
+            </button>
+          </div>
+        </div>
+        <div class="game-layout">
+          <section class="stage" aria-label="Coin toss stage">
+            <div class="stage-top">
+              <span class="stage-label"><i></i> THE FLIP SIDE</span
+              ><span class="round-label">ROUND <span id="round-number">01</span></span>
+            </div>
+            <div class="scenery" aria-hidden="true">
+              <div class="orbit orbit-one"></div>
+              <div class="orbit orbit-two"></div>
+              <svg class="spark spark-one"><use href="#spark" /></svg
+              ><svg class="spark spark-two"><use href="#spark" /></svg
+              ><svg class="spark spark-three"><use href="#spark" /></svg>
+              <div class="odds-stamp">50/50<span>ALL CHANCE</span></div>
+              <div class="cloud cloud-one"></div>
+              <div class="cloud cloud-two"></div>
+              <div class="floor"></div>
+              <div class="pedestal"><span>MAKE IT FLIP</span></div>
+              <div id="coin-shadow" class="coin-shadow"></div>
+              <div id="coin-lift" class="coin-lift">
+                <div id="coin" class="coin">
+                  <div class="coin-face coin-front">
+                    <span class="coin-letter">HEADS</span><svg><use href="#smile" /></svg
+                    ><span class="coin-mint">CHIP'S · 01</span>
+                  </div>
+                  <div class="coin-face coin-back">
+                    <span class="coin-letter">TAILS</span><svg><use href="#star" /></svg
+                    ><span class="coin-mint">CHIP'S · 01</span>
+                  </div>
+                </div>
+              </div>
+              <div id="confetti" class="confetti"></div>
+            </div>
+            <div class="stage-caption">
+              <span id="stage-kicker">ONE COIN. TWO POSSIBILITIES.</span>
+              <p id="stage-line">Got a good feeling?</p>
+            </div>
+          </section>
+          <section class="controls" aria-label="Play Coinflip">
+            <div class="wallet">
+              <span
+                ><span id="wallet-label">PRACTICE CHIPS</span
+                ><strong id="balance">100</strong></span
+              ><span class="wallet-coin" aria-hidden="true">C</span>
+            </div>
+            <form id="play-form">
+              <fieldset id="wager-controls">
+                <legend class="sr-only">Choose your side and wager</legend>
+                <div class="call-controls">
+                  <div class="step-label"><span>01</span> Call it.</div>
+                  <div class="sides" role="group" aria-label="Coin side">
+                    <button id="heads" class="side selected" type="button" aria-pressed="true">
+                      <span class="mini-coin"
+                        ><svg aria-hidden="true"><use href="#smile" /></svg></span
+                      ><span>Heads</span><span class="selection-dot" aria-hidden="true"></span>
+                    </button>
+                    <button id="tails" class="side" type="button" aria-pressed="false">
+                      <span class="mini-coin"
+                        ><svg aria-hidden="true"><use href="#star" /></svg></span
+                      ><span>Tails</span><span class="selection-dot" aria-hidden="true"></span>
+                    </button>
+                  </div>
+                </div>
+                <div class="chip-controls">
+                  <label class="step-label" for="amount"><span>02</span> Pick your chips.</label>
+                  <div class="amount-control">
+                    <button id="less" type="button" aria-label="Wager 5 fewer chips">−</button
+                    ><input
+                      id="amount"
+                      name="amount"
+                      type="number"
+                      inputmode="numeric"
+                      min="1"
+                      max="100"
+                      step="1"
+                      value="10"
+                      required
+                      aria-describedby="wager-hint"
+                    /><button id="more" type="button" aria-label="Wager 5 more chips">+</button>
+                  </div>
+                  <div class="presets" role="group" aria-label="Quick wager">
+                    <button type="button" data-amount="5">5</button
+                    ><button type="button" data-amount="10">10</button
+                    ><button type="button" data-amount="25">25</button
+                    ><button type="button" data-amount="50">50</button>
+                  </div>
+                </div>
+                <p id="wager-hint" class="wager-hint">
+                  <span id="wager-preview"
+                    >Win returns <strong id="return">20</strong> chips, including your wager.</span
+                  >
+                  <span id="amount-error" hidden></span>
+                </p>
+              </fieldset>
+              <button id="flip" class="flip-button" type="submit">
+                <span id="flip-label">LET IT FLY</span><span aria-hidden="true">↗</span>
+              </button>
+            </form>
+            <div class="feedback" role="status" aria-live="polite" aria-atomic="true">
+              <strong id="result-title">Your call. The coin's move.</strong>
+              <p id="result-detail">Pick a side, send it skyward.</p>
+            </div>
+            <button id="refill" class="text-button" type="button" hidden>
+              Refill practice chips
+            </button>
+          </section>
+        </div>
+        <section class="table-strip" aria-label="This visit's results">
+          <div class="history-heading">
+            <span class="eyebrow">FRESH OFF THE FLIP</span
+            ><span id="history-summary">Your last 6 flips land here.</span>
+          </div>
+          <ol id="history" class="history" aria-label="Last six outcomes">
+            <li class="empty-slot">·</li>
+            <li class="empty-slot">·</li>
+            <li class="empty-slot">·</li>
+            <li class="empty-slot">·</li>
+            <li class="empty-slot">·</li>
+            <li class="empty-slot">·</li>
+          </ol>
+          <span class="table-note"
+            >Every flip is a fresh start.<svg aria-hidden="true"><use href="#spark" /></svg
+          ></span>
+        </section>
+      </main>
+      <footer>
+        <span>SMALL GAMES. GOOD TIMES.</span
+        ><span>Even odds. No tricks. <span class="footer-star">✳</span></span>
+      </footer>
+    </div>
+    <dialog id="rules" aria-labelledby="rules-title">
+      <button
+        id="close-rules"
+        class="icon-button dialog-close"
+        type="button"
+        aria-label="Close rules"
+      >
+        ×
+      </button>
+      <p class="eyebrow">WELCOME TO THE FLIP SIDE</p>
+      <h2 id="rules-title">Call it. Flip it.<br />See where it lands.</h2>
+      <p>
+        Pick Heads or Tails and a whole-number chip wager. Each side has an equal 50% chance, every
+        round.
+      </p>
+      <p>
+        A match returns twice your wager: bet 10, get 20 back, for a net gain of 10. A miss costs
+        your wager. Animation and sound never change the odds.
+      </p>
+      <p>
+        <strong>Practice</strong> uses pretend chips in this tab. <strong>Server chips</strong> use
+        your balance in the Discord server where you opened the Activity. No real money.
+      </p>
+      <p>
+        Use Tab and Enter to play. Sound starts off; Motion reduces the toss and celebration. Recent
+        flips are only for this visit.
+      </p>
+    </dialog>
+    <noscript
+      ><p class="noscript">
+        Coinflip needs JavaScript for the coin animation and controls.
+      </p></noscript
+    >
+  </body>
+</html>

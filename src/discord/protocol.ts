@@ -4,6 +4,7 @@ export const ResponseType = {
   ChannelMessage: 4,
   DeferredChannelMessage: 5,
   UpdateMessage: 7,
+  LaunchActivity: 12,
 } as const;
 
 export interface DiscordUser {

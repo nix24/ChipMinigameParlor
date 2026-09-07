@@ -13,15 +13,17 @@
     "deploy": "wrangler deploy --env=\"\"",
     "deploy:staging": "wrangler deploy --env staging",
     "types": "wrangler types",
-    "typecheck": "tsc --noEmit",
+    "build:activity": "rm -rf ./build/activity && bun build ./activity/index.html --outdir ./build/activity --minify --splitting",
+    "typecheck": "tsc --noEmit && tsc -p activity/tsconfig.json",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
     "format": "oxfmt .",
     "format:check": "oxfmt . --check",
     "check": "bun run lint && bun run format:check && bun run typecheck",
-    "test": "vitest run && bun run test:dev-proxy",
+    "test": "bun run build:activity && vitest run && bun run test:dev-proxy",
     "test:dev-proxy": "bun test/dev-tunnel-proxy.check.ts",
-    "dev:test": "vitest",
+    "test:activity": "bun run build:activity && bun test/coinflip-browser.check.mjs",
+    "dev:test": "bun run build:activity && vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply DB --env local --local",
     "db:migrate:staging": "wrangler d1 migrations apply DB --env staging --remote",
@@ -30,7 +32,9 @@
     "commands:register": "bun src/scripts/register-commands.ts"
   },
   "dependencies": {
-    "drizzle-orm": "0.45.2"
+    "@discord/embedded-app-sdk": "2.5.0",
+    "drizzle-orm": "0.45.2",
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.1.1",

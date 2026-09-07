@@ -7,4 +7,5 @@ export interface Env extends Omit<Cloudflare.Env, "TEST_GUILD_ID"> {
   GEMINI_API_KEY?: string;
   NODE_ENV?: string;
   BOT_ADMIN_TOKEN?: string;
+  DISCORD_CLIENT_SECRET?: string;
 }

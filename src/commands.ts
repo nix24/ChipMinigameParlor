@@ -1,15 +1,14 @@
 import { EconomyRepository } from "./db/repository";
 import { RunRepository } from "./db/run-repository";
-import { MAX_CHIPS } from "./db/schema";
+import { MAX_COIN_FLIP_STAKE, coinFlipStake, settleCoinFlip } from "./games/coinflip";
 import {
   message,
+  ResponseType,
   type DiscordInteraction,
   type InteractionResponse,
   userId,
 } from "./discord/protocol";
 import type { Env } from "./env";
-
-const MAX_COIN_FLIP_STAKE = Math.floor(MAX_CHIPS / 2);
 
 export const applicationCommands = [
   "balance",
@@ -28,13 +27,13 @@ export const applicationCommands = [
   name === "coinflip"
     ? {
         name,
-        description: "Bet chips on a coin flip.",
+        description: "Open the Coinflip arcade, or make a quick wager in chat.",
         options: [
           {
             name: "amount",
             description: "How many chips to bet.",
             type: 4,
-            required: true,
+            required: false,
             min_value: 1,
             max_value: MAX_COIN_FLIP_STAKE,
           },
@@ -42,7 +41,7 @@ export const applicationCommands = [
             name: "choice",
             description: "Choose Heads or Tails.",
             type: 3,
-            required: true,
+            required: false,
             choices: [
               { name: "Heads", value: "heads" },
               { name: "Tails", value: "tails" },
@@ -55,14 +54,6 @@ export const applicationCommands = [
 
 const inProgress = (name: string): InteractionResponse =>
   message(`/${name} is registered and will be implemented after Big Blast.`, true);
-
-function coinFlipStake(value: string | number | boolean | undefined): number | undefined {
-  if (value === undefined || value === true || value === false) return undefined;
-  const stake = Number(value);
-  return Number.isSafeInteger(stake) && stake > 0 && stake <= MAX_COIN_FLIP_STAKE
-    ? stake
-    : undefined;
-}
 
 export async function handleCommand(
   env: Env,
@@ -114,6 +105,7 @@ export async function handleCommand(
     return (await response.json()) as InteractionResponse;
   }
   if (name === "coinflip") {
+    if (!interaction.data?.options?.length) return { type: ResponseType.LaunchActivity };
     const amount = coinFlipStake(
       interaction.data?.options?.find((option) => option.name === "amount")?.value
     );
@@ -123,17 +115,12 @@ export async function handleCommand(
     if (choice !== "heads" && choice !== "tails")
       return message("Choose either Heads or Tails.", true);
 
-    const generatedOutcome =
-      crypto.getRandomValues(new Uint8Array(1))[0] % 2 === 0 ? "heads" : "tails";
-    const settlement = await economy.settleWager({
+    const settlement = await settleCoinFlip(economy, {
       transactionId: interaction.id,
       userId: actorId,
       guildId,
-      game: "coinflip",
-      requestFingerprint: `coinflip:${actorId}:${guildId}:${amount}:${choice}`,
-      stake: amount,
-      payout: generatedOutcome === choice ? amount * 2 : 0,
-      result: generatedOutcome,
+      amount,
+      choice,
     });
     if (!settlement.settled)
       return message(
@@ -142,11 +129,8 @@ export async function handleCommand(
           : `That wager would exceed the supported chip balance. Your balance is ${settlement.chips} chips.`,
         true
       );
-    const storedOutcome = settlement.result;
-    if (storedOutcome !== "heads" && storedOutcome !== "tails")
-      throw new Error("Stored Coin Flip outcome is invalid.");
-    const won = storedOutcome === choice;
-    const outcome = storedOutcome === "heads" ? "Heads" : "Tails";
+    const won = settlement.won;
+    const outcome = settlement.outcome === "heads" ? "Heads" : "Tails";
     return message(
       `The coin landed on **${outcome}**. You ${won ? "won" : "lost"} **${amount}** chips. New balance: **${settlement.chips}**.`
     );

@@ -1,10 +1,22 @@
 import { createServer, type Server } from "node:http";
 
-/** Expose only bot traffic, never Wrangler's local explorer or inspector routes. */
+/** Expose bot and Activity routes, never Wrangler's local explorer or inspector routes. */
 export async function startTunnelProxy(workerPort: number, signal: AbortSignal): Promise<Server> {
   const server = createServer(async (request, response) => {
+    const path = new URL(request.url ?? "/", "http://local").pathname;
+    const activityRead =
+      (request.method === "GET" || request.method === "HEAD") &&
+      (path === "/" ||
+        path === "/index.html" ||
+        /^\/index-[a-z0-9]+\.(js|css)$/.test(path) ||
+        path === "/api/activity/config");
+    const activityWrite =
+      request.method === "POST" &&
+      (path === "/api/activity/session" || path === "/api/activity/flip");
     if (
       !(
+        activityRead ||
+        activityWrite ||
         (request.url === "/" && request.method === "POST") ||
         (request.url === "/__dev/health" && request.method === "GET")
       )
@@ -23,15 +35,20 @@ export async function startTunnelProxy(workerPort: number, signal: AbortSignal):
         }
         chunks.push(chunk);
       }
-      const headers = new Headers({ "Content-Type": "application/json" });
-      for (const name of ["x-signature-ed25519", "x-signature-timestamp"]) {
+      const headers = new Headers();
+      for (const name of [
+        "x-signature-ed25519",
+        "x-signature-timestamp",
+        "content-type",
+        "authorization",
+      ]) {
         const value = request.headers[name];
         if (value && !Array.isArray(value)) headers.set(name, value);
       }
       const options: RequestInit = {
         method: request.method,
         headers,
-        signal: AbortSignal.any([signal, AbortSignal.timeout(2500)]),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(activityWrite ? 20000 : 2500)]),
         redirect: "error",
       };
       if (request.method === "POST") options.body = Buffer.concat(chunks);
@@ -39,6 +56,7 @@ export async function startTunnelProxy(workerPort: number, signal: AbortSignal):
       const body = await upstream.arrayBuffer();
       response.writeHead(upstream.status, {
         "Content-Type": upstream.headers.get("Content-Type") ?? "text/plain",
+        "Cache-Control": upstream.headers.get("Cache-Control") ?? "no-store",
       });
       response.end(Buffer.from(body));
     } catch {

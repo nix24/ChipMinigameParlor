@@ -55,10 +55,33 @@ describe("interaction worker", () => {
     await applyD1Migrations(env.DB, testEnv.TEST_MIGRATIONS);
   });
 
-  it("does not expose a GET route", async () => {
+  it("does not expose unknown GET routes", async () => {
     const worker = (await import("../src/index")).default;
-    const response = await worker.fetch(new Request("https://example.test"), env);
+    const response = await worker.fetch(new Request("https://example.test/not-a-route"), env);
     expect(response.status).toBe(404);
+  });
+
+  it("serves the built Activity and its entry script", async () => {
+    const worker = (await import("../src/index")).default;
+    const page = await worker.fetch(new Request("https://example.test/"), env);
+    expect(page.status).toBe(200);
+    expect(page.headers.get("Content-Type")).toContain("text/html");
+    const html = await page.text();
+    expect(html).toContain("Coinflip");
+    const script = html.match(/src="\.\/(index-[a-z0-9]+\.js)"/);
+    expect(script).not.toBeNull();
+    const asset = await worker.fetch(new Request(`https://example.test/${script?.[1]}`), env);
+    expect(asset.status).toBe(200);
+    expect(asset.headers.get("Content-Type")).toContain("javascript");
+  });
+
+  it("launches the Coinflip Activity without placing a chat wager", async () => {
+    const response = await handleCommand(
+      env,
+      command("activity-launch", "coinflip", "activity-player", "activity-guild")
+    );
+    expect(response).toEqual({ type: 12 });
+    expect(await transactionCount("activity-launch")).toBe(0);
   });
 
   it("keeps Big Blast lobby membership in one Durable Object", async () => {

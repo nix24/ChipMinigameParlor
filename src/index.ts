@@ -11,6 +11,7 @@ import { GameSession } from "./games/game-session";
 import { GatewayPresence } from "./discord/gateway";
 import { admin } from "./discord/admin";
 import type { DiscordInteraction, InteractionResponse } from "./discord/protocol";
+import { coinflipApi } from "./games/coinflip-api";
 
 export { GameSession, GatewayPresence };
 
@@ -56,6 +57,16 @@ async function runInteraction(interaction: DiscordInteraction, env: Env): Promis
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const path = new URL(request.url).pathname;
+    if (path.startsWith("/api/activity/")) return coinflipApi(request, env);
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      (path === "/" || path === "/index.html" || /^\/index-[a-z0-9]+\.(js|css)$/.test(path))
+    ) {
+      const assetUrl = new URL(request.url);
+      if (path === "/") assetUrl.pathname = "/index.html";
+      return env.ASSETS.fetch(new Request(assetUrl, request));
+    }
     if (
       env.APP_ENV === "local" &&
       request.method === "GET" &&

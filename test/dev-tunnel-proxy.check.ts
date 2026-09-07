@@ -8,7 +8,11 @@ const upstream = createServer((request, response) => {
   forwarded += 1;
   response.setHeader("Content-Type", "application/json");
   response.end(
-    JSON.stringify({ path: request.url, signature: request.headers["x-signature-ed25519"] })
+    JSON.stringify({
+      path: request.url,
+      signature: request.headers["x-signature-ed25519"],
+      authorization: request.headers.authorization,
+    })
   );
 });
 await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
@@ -39,9 +43,21 @@ try {
   });
   assert.match(await interaction.text(), /test-signature/);
   assert.equal(forwarded, 2);
+  const activity = await fetch(`${origin}/?frame_id=test&platform=desktop`);
+  assert.equal(activity.status, 200);
+  const asset = await fetch(`${origin}/index-abc123.js`);
+  assert.equal(asset.status, 200);
+  const wager = await fetch(`${origin}/api/activity/flip`, {
+    method: "POST",
+    headers: { Authorization: "Bearer test-session", "Content-Type": "application/json" },
+    body: "{}",
+  });
+  assert.match(await wager.text(), /Bearer test-session/);
+  assert.equal(wager.headers.get("Cache-Control"), "no-store");
+  assert.equal(forwarded, 5);
   const oversized = await fetch(origin, { method: "POST", body: "a".repeat(65_537) });
   assert.equal(oversized.status, 413);
-  assert.equal(forwarded, 2);
+  assert.equal(forwarded, 5);
   console.log(
     "Dev tunnel proxy checks passed: allowed routes, signature forwarding, blocked explorer/admin, request size bound."
   );

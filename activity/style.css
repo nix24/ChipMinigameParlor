@@ -1,0 +1,804 @@
+@import url("./scene.css");
+
+:root {
+  font-family: "Trebuchet MS", Arial, sans-serif;
+  color: #233f36;
+  background: #f7f3df;
+  font-synthesis: none;
+  font-weight: 500;
+  color-scheme: light;
+  --ink: #233f36;
+  --orange: #f16b3d;
+  --cream: #fffdf2;
+  --line: #d9ddc8;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+button,
+a,
+input {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+button {
+  transition:
+    transform 0.12s,
+    background 0.12s;
+}
+button:active:not(:disabled) {
+  transform: translateY(2px);
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid #296951;
+  outline-offset: 4px;
+}
+[hidden] {
+  display: none !important;
+}
+.symbol-library {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.parlor {
+  max-width: 1220px;
+  padding: 0 38px;
+  margin: auto;
+}
+.topbar {
+  min-height: 108px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  gap: 20px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+.brand-subtitle {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 2px;
+  margin-top: 6px;
+}
+.brand-coin {
+  width: 43px;
+  height: 43px;
+  display: block;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: #ffcf58;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+.brand-coin svg {
+  width: 100%;
+  height: 100%;
+}
+.toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.icon-button {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #cbd3be;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 20px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.icon-button svg {
+  width: 18px;
+  height: 18px;
+}
+.sound-slash {
+  position: absolute;
+  width: 24px;
+  height: 2px;
+  background: var(--ink);
+  transform: rotate(-45deg);
+  box-shadow: 0 1px #f7f3df;
+}
+#sound[aria-pressed="true"] .sound-slash {
+  display: none;
+}
+.quiet-button {
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 10px;
+}
+.quiet-button[aria-pressed="true"] {
+  background: #dce7cd;
+}
+.intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 29px 0 27px;
+}
+.eyebrow {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  margin: 0 0 9px;
+}
+h1 {
+  font-size: clamp(50px, 6vw, 76px);
+  line-height: 1;
+  letter-spacing: -5px;
+  margin: 0;
+  font-weight: 900;
+  position: relative;
+  width: max-content;
+}
+h1 span {
+  color: var(--orange);
+}
+h1 svg {
+  height: 25px;
+  width: 25px;
+  position: absolute;
+  right: -38px;
+  top: 0;
+  color: var(--orange);
+  transform: rotate(15deg);
+}
+.tagline {
+  margin: 10px 0 0;
+  font-size: 15px;
+  color: #5e6e5c;
+}
+.mode-block {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 45%;
+}
+.mode-pill {
+  background: #e7ecd6;
+  border: 1px solid #ccd7b8;
+  border-radius: 30px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 10px 13px;
+  text-align: center;
+}
+.text-button {
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  padding: 0 0 3px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  width: fit-content;
+}
+.game-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 23px;
+}
+.controls {
+  background: var(--cream);
+  border: 1px solid #d5d9c4;
+  border-radius: 22px;
+  padding: 23px 24px;
+  box-shadow: 0 5px 0 #e8e8d5;
+}
+.wallet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 19px;
+  border-bottom: 1px dashed #cbd2ba;
+  margin-bottom: 20px;
+}
+.wallet > span:first-child {
+  min-width: 0;
+}
+.wallet strong.long-balance {
+  font-size: 18px;
+  letter-spacing: -0.5px;
+}
+.wallet > span > span {
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  font-weight: 800;
+}
+.wallet strong {
+  display: block;
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.wallet-coin {
+  flex-shrink: 0;
+  background: #ffd560;
+  border: 2px solid #bd8725;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  color: #aa7422;
+  box-shadow: 2px 2px 0 #d2a434;
+}
+fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.step-label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 800;
+  margin: 0 0 12px;
+}
+.step-label > span {
+  font-size: 9px;
+  color: #6f8067;
+  border: 1px solid #d4dbc7;
+  border-radius: 50%;
+  width: 21px;
+  height: 21px;
+  display: grid;
+  place-items: center;
+}
+.sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.side {
+  position: relative;
+  border: 1.5px solid #d9ddca;
+  border-radius: 13px;
+  background: #f5f5e9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 8px;
+  font-size: 14px;
+  font-weight: 800;
+}
+.side.selected {
+  border-color: #477057;
+  background: #e8f0d5;
+  box-shadow: 0 2px 0 #477057;
+}
+.mini-coin {
+  width: 32px;
+  height: 32px;
+  border: 2px solid #d7a235;
+  border-radius: 50%;
+  background: #ffda65;
+  color: #a87927;
+  flex-shrink: 0;
+}
+.mini-coin svg {
+  width: 100%;
+  height: 100%;
+}
+.selection-dot {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: transparent;
+}
+.selected .selection-dot {
+  background: #477057;
+}
+.amount-control {
+  height: 45px;
+  border: 1px solid #cdd5bd;
+  border-radius: 10px;
+  display: flex;
+  overflow: hidden;
+  background: #fffef8;
+}
+.amount-control button {
+  width: 44px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  font-size: 23px;
+}
+.amount-control input {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 800;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.amount-control input::-webkit-inner-spin-button {
+  appearance: none;
+}
+.presets {
+  display: flex;
+  gap: 7px;
+  margin-top: 9px;
+}
+.presets button {
+  flex: 1;
+  border: 1px solid #dce0cf;
+  background: #f4f5e9;
+  border-radius: 6px;
+  padding: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.presets button.chosen {
+  background: #e1ead1;
+  border-color: #9caf8b;
+}
+.wager-hint {
+  font-size: 10px;
+  line-height: 1.5;
+  color: #60705a;
+  min-height: 30px;
+  margin: 10px 0 15px;
+}
+.flip-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--orange);
+  color: #fffdf3;
+  border: 2px solid #bb4928;
+  border-radius: 11px;
+  padding: 15px 19px;
+  box-shadow: 0 4px 0 #a64426;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.9px;
+}
+.flip-button > span:last-child {
+  font-size: 24px;
+  line-height: 1;
+}
+.flip-button:hover:not(:disabled) {
+  background: #e65e32;
+  transform: translateY(-1px);
+}
+.flip-button:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #a64426;
+}
+.feedback {
+  text-align: center;
+  margin-top: 21px;
+  min-height: 52px;
+}
+.feedback strong {
+  font-size: 13px;
+}
+.feedback p {
+  font-size: 11px;
+  color: #61705c;
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+.controls[data-result="win"] .feedback strong {
+  color: #28724e;
+}
+.controls[data-result="error"] .feedback strong {
+  color: #a63e29;
+}
+#refill {
+  display: block;
+  margin: 6px auto 0;
+}
+.table-strip {
+  margin-top: 25px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 20px 2px;
+}
+.history-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 190px;
+}
+.history-heading .eyebrow {
+  margin: 0;
+  font-size: 9px;
+}
+.history-heading > span:last-child {
+  font-size: 11px;
+  color: #66735e;
+}
+.history {
+  display: flex;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.history li {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d4dac6;
+  border-radius: 50%;
+  font-weight: 800;
+  font-size: 11px;
+}
+.history .empty-slot {
+  color: #a3ad94;
+  background: #edefde;
+}
+.history .heads {
+  background: #ffe39a;
+  color: #82581d;
+  border-color: #dab765;
+}
+.history .tails {
+  background: #d9e7c4;
+  color: #466447;
+  border-color: #aac296;
+}
+.table-note {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  font-size: 11px;
+  font-style: italic;
+  color: #66745f;
+}
+.table-note svg {
+  width: 22px;
+  height: 22px;
+  color: var(--orange);
+  flex-shrink: 0;
+}
+footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 23px 0;
+  color: #72806a;
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  font-weight: 700;
+}
+.footer-star {
+  color: var(--orange);
+  font-size: 16px;
+  vertical-align: middle;
+  margin-left: 10px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+dialog {
+  max-width: 440px;
+  width: calc(100% - 32px);
+  max-height: 85dvh;
+  overflow: auto;
+  border: 1px solid #b9c6ac;
+  border-radius: 20px;
+  padding: 38px 30px;
+  background: var(--cream);
+  color: var(--ink);
+  box-shadow: 0 20px 90px #19342640;
+}
+dialog::backdrop {
+  background: #19342680;
+  backdrop-filter: blur(4px);
+}
+dialog h2 {
+  font-size: 31px;
+  letter-spacing: -1px;
+  line-height: 1.1;
+}
+dialog p:not(.eyebrow) {
+  font-size: 14px;
+  line-height: 1.65;
+}
+.dialog-close {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+}
+.noscript {
+  padding: 20px;
+  text-align: center;
+}
+@media (min-width: 1400px) {
+  .parlor {
+    padding-top: 12px;
+  }
+  .intro {
+    padding-top: 35px;
+    padding-bottom: 35px;
+  }
+}
+@media (max-width: 900px) {
+  .parlor {
+    padding: 0 24px;
+  }
+  .game-layout {
+    grid-template-columns: minmax(0, 1fr) 290px;
+    gap: 16px;
+  }
+  .controls {
+    padding: 20px;
+  }
+  .table-note {
+    display: none;
+  }
+  .intro {
+    padding: 24px 0;
+  }
+  .table-strip {
+    justify-content: space-between;
+  }
+}
+@media (min-width: 651px) and (max-height: 800px) {
+  .topbar {
+    min-height: 70px;
+  }
+  .intro {
+    padding: 18px 0;
+  }
+  h1 {
+    font-size: 58px;
+  }
+  .controls {
+    padding: 18px;
+  }
+  .wallet {
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+  }
+  .sides {
+    margin-bottom: 16px;
+  }
+  .feedback {
+    margin-top: 16px;
+    min-height: 40px;
+  }
+  .stage {
+    min-height: 460px;
+  }
+}
+@media (max-width: 650px) {
+  .parlor {
+    padding: 0 16px;
+  }
+  .topbar {
+    min-height: 65px;
+  }
+  .brand {
+    font-size: 20px;
+  }
+  .brand-subtitle {
+    font-size: 7px;
+  }
+  .brand-coin {
+    width: 35px;
+    height: 35px;
+  }
+  .toolbar {
+    gap: 5px;
+  }
+  .icon-button {
+    width: 32px;
+    height: 32px;
+  }
+  .quiet-button {
+    font-size: 10px;
+    padding: 8px 4px;
+  }
+  .intro {
+    padding: 18px 0;
+    align-items: flex-end;
+  }
+  .intro .eyebrow {
+    font-size: 7px;
+    letter-spacing: 1.1px;
+  }
+  h1 {
+    font-size: 48px;
+    letter-spacing: -3px;
+  }
+  h1 svg {
+    width: 17px;
+    height: 17px;
+    right: -23px;
+  }
+  .tagline {
+    font-size: 12px;
+    margin-top: 7px;
+  }
+  .mode-block {
+    max-width: 40%;
+    gap: 8px;
+  }
+  .mode-pill {
+    font-size: 8px;
+    letter-spacing: 0.6px;
+    line-height: 1.5;
+    padding: 6px 9px;
+  }
+  .mode-block .text-button {
+    font-size: 10px;
+    text-align: right;
+  }
+  .game-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .controls {
+    padding: 16px;
+  }
+  .wallet {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+  }
+  .wallet > span:first-child {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .wallet strong {
+    font-size: 24px;
+  }
+  #wager-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0 14px;
+  }
+  .step-label {
+    font-size: 11px;
+    gap: 6px;
+    margin-bottom: 9px;
+  }
+  .sides {
+    margin-bottom: 0;
+    gap: 6px;
+  }
+  .side {
+    padding: 9px 4px;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+  }
+  .mini-coin {
+    width: 28px;
+    height: 28px;
+  }
+  .amount-control {
+    height: 39px;
+  }
+  .amount-control button {
+    width: 28px;
+  }
+  .amount-control input {
+    font-size: 17px;
+  }
+  .presets {
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .presets button {
+    padding: 5px 2px;
+    font-size: 10px;
+  }
+  .controls .wager-hint {
+    grid-column: 1 / -1;
+    min-height: 0;
+    margin: 11px 0 12px;
+  }
+  .flip-button {
+    padding: 12px 17px;
+  }
+  .feedback {
+    min-height: 36px;
+    margin-top: 15px;
+  }
+  .table-strip {
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 22px;
+    padding: 16px 0;
+  }
+  .history-heading {
+    min-width: 145px;
+  }
+  .history {
+    gap: 5px;
+  }
+  .history li {
+    width: 26px;
+    height: 26px;
+  }
+  .history-heading .eyebrow {
+    font-size: 8px;
+    letter-spacing: 1.1px;
+  }
+  .history-heading > span:last-child {
+    font-size: 10px;
+  }
+  footer {
+    font-size: 7px;
+    letter-spacing: 0.7px;
+    padding: 18px 0;
+  }
+}
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  transition: none !important;
+  animation: none !important;
+}

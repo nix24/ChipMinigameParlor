@@ -4,7 +4,12 @@ A Cloudflare Worker Discord interactions bot. D1 owns the guild-scoped economy a
 
 ## Current command status
 
-Every prior command name is registered: `balance`, `daily`, `fishing`, `leaderboard`, `sell`, `8ball`, `bigblast`, `blackcat`, `catheist`, `coinflip`, and `connect4tress`. Only economy reads/daily claims and the Big Blast lobby are live in this foundation; the remaining game mechanics deliberately respond with a clear in-progress message.
+Every prior command name is registered: `balance`, `daily`, `fishing`, `leaderboard`, `sell`, `8ball`, `bigblast`, `blackcat`, `catheist`, `coinflip`, and `connect4tress`. Economy reads/daily claims, Coinflip, and the Big Blast lobby are implemented; other game mechanics respond with an in-progress message.
+
+`/coinflip` opens the Discord Activity after Activity setup and command registration. It includes
+an animated coin, original vector art, optional synthesized sound, reduced motion, and a browser-only
+practice table. `/coinflip amount:10 choice:Heads` still settles a quick wager in chat.
+See [Coinflip setup, behavior, and verification](docs/coinflip.md).
 
 ## Local setup
 
@@ -59,8 +64,10 @@ automatic production fallback and no forwarding retry of a potentially completed
 An explicit production switch also prevents an old dev process from renewing itself back into control.
 Only one local session can hold the active lease; after an abrupt stop, allow up to two minutes
 before starting a replacement. Quick tunnels are temporary development infrastructure, not an SLA.
-Startup allows about two minutes for tunnel propagation. A local proxy exposes only signed
-interaction delivery and the dev health check; Wrangler's database explorer and admin routes are blocked.
+Startup allows about two minutes for tunnel propagation. A local proxy exposes signed interaction
+delivery, the dev health check, and the explicit Coinflip asset/API routes; Wrangler's database explorer
+and admin routes are blocked. Activity testing uses Discord's personal Application URL Override to
+point at the tunnel; slash-command forwarding does not redirect an Activity's browser traffic.
 Keep `global_fetch_strictly_public` enabled: the deployed routing object must reach the tunnel
 through Cloudflare's public routing. Without it, live tunnel checks returned HTTP 530 / error 1016.
 
@@ -104,16 +111,18 @@ Discord secrets in Cloudflare. Later deployments preserve those Worker secrets.
 
 ## Commands
 
-| Command                         | Purpose                                             |
-| ------------------------------- | --------------------------------------------------- |
-| `bun run dev`                   | Start the local Worker with simulated bindings      |
-| `bun run test`                  | Run Cloudflare Worker and Durable Object tests      |
-| `bun run check`                 | Lint, format-check, and type-check                  |
-| `bun run db:generate`           | Generate a Drizzle SQL migration                    |
-| `bun run db:migrate:local`      | Apply migrations to local D1                        |
-| `bun run release:staging`       | Check, test, migrate, and deploy the staging Worker |
-| `bun run db:migrate:production` | Apply migrations to production D1                   |
-| `bun run deploy`                | Deploy the production Worker                        |
+| Command                         | Purpose                                              |
+| ------------------------------- | ---------------------------------------------------- |
+| `bun run dev`                   | Start the local Worker with simulated bindings       |
+| `bun run build:activity`        | Bundle the Activity into ignored `build/activity`    |
+| `bun run test:activity`         | Run local Chromium Activity checks with SDK fixtures |
+| `bun run test`                  | Run Cloudflare Worker and Durable Object tests       |
+| `bun run check`                 | Lint, format-check, and type-check                   |
+| `bun run db:generate`           | Generate a Drizzle SQL migration                     |
+| `bun run db:migrate:local`      | Apply migrations to local D1                         |
+| `bun run release:staging`       | Check, test, migrate, and deploy the staging Worker  |
+| `bun run db:migrate:production` | Apply migrations to production D1                    |
+| `bun run deploy`                | Deploy the production Worker                         |
 
 ## Architecture
 
